@@ -10,3 +10,34 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Stock {
+  id                 String             @id @default(cuid())
+  name               String
+  ticker             String             @unique
+  exchange           String             @default("NSE")
+  quantity           Float
+  avgPrice           Float
+  currentPrice       Float              @default(0)
+  investedValue      Float
+  currentValue       Float              @default(0)
+  lastPriceUpdatedAt DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  transactions       StockTransaction[]
+}
+
+model StockTransaction {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  date      DateTime
+  type      String   // BUY | SELL
+  quantity  Float
+  price     Float
+  amount    Float
+  createdAt DateTime @default(now())
+
+  @@index([stockId])
+  @@index([date])
+}
