@@ -3,7 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { parseZerodhaHoldings } from '@/lib/parsers/zerodhaHoldings'
 
 // Holdings is the source of truth for current position.
-// Existing stocks are REPLACED (not additively merged) — idempotent.
+// holdingsQuantity is set to the file value on every import.
+// On update, existing transactions are preserved and quantity is recalculated
+// as: holdingsQuantity + (BUY txns - SELL txns).
 
 export async function POST(request: NextRequest) {
   let formData: FormData
@@ -37,36 +39,40 @@ export async function POST(request: NextRequest) {
 
   for (const row of rows) {
     try {
-      const investedValue = row.quantity * row.avgPrice
-      const currentValue  = row.quantity * row.currentPrice
       const existing = await prisma.stock.findUnique({ where: { ticker: row.ticker } })
 
       if (existing) {
-        // Replace position with file values — never add quantities together
+        // Preserve existing transactions; recalculate quantity on top of new holdings base
+        const txns = await prisma.stockTransaction.findMany({ where: { stockId: existing.id } })
+        const txnNet = txns.reduce((sum, t) => t.type === 'BUY' ? sum + t.quantity : sum - t.quantity, 0)
+        const newQty = row.quantity + txnNet
+
         await prisma.stock.update({
           where: { id: existing.id },
           data: {
-            sector:        row.sector !== '' ? row.sector : (existing.sector ?? ''),
-            quantity:      row.quantity,
-            avgPrice:      row.avgPrice,
-            currentPrice:  row.currentPrice,
-            investedValue,
-            currentValue,
+            sector:          row.sector !== '' ? row.sector : (existing.sector ?? ''),
+            holdingsQuantity: row.quantity,
+            quantity:         newQty,
+            avgPrice:         row.avgPrice,
+            currentPrice:     row.currentPrice,
+            investedValue:    newQty * row.avgPrice,
+            currentValue:     newQty * row.currentPrice,
           },
         })
         updated++
       } else {
         await prisma.stock.create({
           data: {
-            name:          row.name,
-            ticker:        row.ticker,
-            exchange:      row.exchange,
-            sector:        row.sector,
-            quantity:      row.quantity,
-            avgPrice:      row.avgPrice,
-            currentPrice:  row.currentPrice,
-            investedValue,
-            currentValue,
+            name:            row.name,
+            ticker:          row.ticker,
+            exchange:        row.exchange,
+            sector:          row.sector,
+            holdingsQuantity: row.quantity,
+            quantity:         row.quantity,
+            avgPrice:         row.avgPrice,
+            currentPrice:     row.currentPrice,
+            investedValue:    row.quantity * row.avgPrice,
+            currentValue:     row.quantity * row.currentPrice,
           },
         })
         created++

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Upload, Plus, TrendingUp, RefreshCw, Pencil } from 'lucide-react'
+import { Upload, Plus, TrendingUp, RefreshCw, Pencil, PackageOpen } from 'lucide-react'
 import { formatINR, formatShort, formatShortSigned, formatPctSigned } from '@/lib/utils'
 import AddEditStockDialog from '@/components/stocks/AddEditStockDialog'
 import TransactionDialog from '@/components/stocks/TransactionDialog'
@@ -20,11 +20,14 @@ interface StockItem {
   quantity: number
   avgPrice: number
   currentPrice: number
+  holdingsQuantity: number
   investedValue: number
   currentValue: number
+  displayCurrentValue: number
   gainLoss: number
   gainLossPct: number
   transactionCount: number
+  priceStale: boolean
 }
 
 // ─── Static rail data for non-stocks tabs ─────────────────────────────────────
@@ -95,7 +98,7 @@ function SkeletonTable() {
   )
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Empty states ─────────────────────────────────────────────────────────────
 
 function EmptyStocks({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
   return (
@@ -112,6 +115,22 @@ function EmptyStocks({ onAdd, onImport }: { onAdd: () => void; onImport: () => v
         <button onClick={onImport} style={ghostBtnStyle}>Import</button>
         <button onClick={onAdd} style={primaryBtnStyle}>Add stock</button>
       </div>
+    </div>
+  )
+}
+
+function AllSoldEmpty({ onImport }: { onImport: () => void }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '60px 20px', gap: '12px',
+    }}>
+      <PackageOpen size={36} color="var(--color-text-muted)" strokeWidth={1.5} />
+      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No active positions</div>
+      <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+        All your positions have been closed
+      </div>
+      <button onClick={onImport} style={ghostBtnStyle}>Import holdings</button>
     </div>
   )
 }
@@ -153,10 +172,10 @@ function StocksTable({
         </div>
 
         {stocks.map((stock, i) => {
-          const isLast      = i === stocks.length - 1
-          const gainColor   = stock.gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
-          const isHovered   = hoveredId === stock.id
-          const pnlSign     = stock.gainLoss >= 0 ? '+' : '−'
+          const isLast    = i === stocks.length - 1
+          const gainColor = stock.gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+          const isHovered = hoveredId === stock.id
+          const pnlSign   = stock.gainLoss >= 0 ? '+' : '−'
 
           return (
             <div
@@ -208,19 +227,38 @@ function StocksTable({
                 {formatINR(stock.avgPrice)}
               </div>
 
-              {/* Current */}
-              <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {formatINR(stock.currentPrice)}
+              {/* Current price / stale indicator */}
+              <div style={{ textAlign: 'right' }}>
+                {stock.priceStale ? (
+                  <div>
+                    <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      —
+                    </div>
+                    <div style={{ fontSize: '9.5px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                      Price not updated
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    {formatINR(stock.currentPrice)}
+                  </div>
+                )}
               </div>
 
               {/* P&L */}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: gainColor, fontVariantNumeric: 'tabular-nums' }}>
-                  {pnlSign}₹{Math.abs(stock.gainLoss).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div style={{ fontSize: '10.5px', color: gainColor, marginTop: '1px' }}>
-                  {formatPctSigned(stock.gainLossPct)}
-                </div>
+                {stock.priceStale ? (
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: gainColor, fontVariantNumeric: 'tabular-nums' }}>
+                      {pnlSign}₹{Math.abs(stock.gainLoss).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: gainColor, marginTop: '1px' }}>
+                      {formatPctSigned(stock.gainLossPct)}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Edit icon */}
@@ -256,6 +294,7 @@ export default function AssetsPage() {
 
   // Stocks data
   const [stocks, setStocks] = useState<StockItem[]>([])
+  const [totalIncludingZero, setTotalIncludingZero] = useState(0)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
 
@@ -270,14 +309,25 @@ export default function AssetsPage() {
   const [txStock, setTxStock] = useState<StockItem | null>(null)
   const [showImport, setShowImport] = useState(false)
 
+  // Keep a ref to txStock so fetchStocks can update it without being a dependency
+  const txStockRef = useRef<StockItem | null>(null)
+  useEffect(() => { txStockRef.current = txStock }, [txStock])
+
   const fetchStocks = useCallback(async () => {
     setLoading(true)
     setFetchError('')
     try {
       const res = await fetch('/api/stocks')
-      const data = await res.json() as { stocks?: StockItem[]; error?: string }
+      const data = await res.json() as { stocks?: StockItem[]; totalIncludingZero?: number; error?: string }
       if (!res.ok) throw new Error(data.error)
-      setStocks(data.stocks ?? [])
+      const freshStocks = data.stocks ?? []
+      setStocks(freshStocks)
+      setTotalIncludingZero(data.totalIncludingZero ?? 0)
+      // Keep TransactionDialog in sync with fresh stock data
+      if (txStockRef.current) {
+        const fresh = freshStocks.find(s => s.id === txStockRef.current!.id)
+        if (fresh) setTxStock(fresh)
+      }
     } catch {
       setFetchError('Could not load your stocks. Please refresh the page.')
     } finally {
@@ -304,14 +354,17 @@ export default function AssetsPage() {
     }
   }
 
-  // Derived rail stats
+  // For the header stats, use displayCurrentValue (falls back to investedValue when price is stale)
   const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
-  const stocksCurrent    = stocks.reduce((s, x) => s + x.currentValue, 0)
+  const stocksCurrent    = stocks.reduce((s, x) => s + x.displayCurrentValue, 0)
   const stocksGain       = stocksCurrent - stocksInvested
   const stocksGainPct    = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
   const stocksGainColor  = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
   const activeOther = activeTab !== 'stocks' ? otherAssets.find(a => a.value === activeTab) : null
+
+  // Empty state variant
+  const allSold = stocks.length === 0 && totalIncludingZero > 0
 
   return (
     <div style={{ display: 'flex', gap: '16px' }}>
@@ -449,6 +502,8 @@ export default function AssetsPage() {
                 {fetchError}
                 <button onClick={fetchStocks} style={ghostBtnStyle}>Retry</button>
               </div>
+            ) : allSold ? (
+              <AllSoldEmpty onImport={() => setShowImport(true)} />
             ) : stocks.length === 0 ? (
               <EmptyStocks onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} />
             ) : (

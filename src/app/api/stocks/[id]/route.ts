@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -12,14 +13,10 @@ export async function GET(_req: Request, { params }: Ctx) {
       include: { transactions: { orderBy: { date: 'desc' } } },
     })
 
-    if (!stock) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-
+    if (!stock) return NextResponse.json({ error: 'Stock not found' }, { status: 404 })
     return NextResponse.json({ stock })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: apiError(error) }, { status: 500 })
   }
 }
 
@@ -28,18 +25,11 @@ export async function PUT(request: Request, { params }: Ctx) {
     const { id } = await params
 
     const existing = await prisma.stock.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
+    if (!existing) return NextResponse.json({ error: 'Stock not found' }, { status: 404 })
 
     const body = await request.json() as {
-      name?: unknown
-      ticker?: unknown
-      exchange?: unknown
-      sector?: unknown
-      quantity?: unknown
-      avgPrice?: unknown
-      currentPrice?: unknown
+      name?: unknown; ticker?: unknown; exchange?: unknown; sector?: unknown
+      quantity?: unknown; avgPrice?: unknown; currentPrice?: unknown
     }
 
     const quantity     = typeof body.quantity     === 'number' ? body.quantity     : existing.quantity
@@ -63,8 +53,10 @@ export async function PUT(request: Request, { params }: Ctx) {
 
     return NextResponse.json({ stock })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') return NextResponse.json({ error: 'A stock with this ticker already exists' }, { status: 409 })
+    }
+    return NextResponse.json({ error: apiError(error) }, { status: 500 })
   }
 }
 
@@ -73,15 +65,22 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const { id } = await params
 
     const existing = await prisma.stock.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
+    if (!existing) return NextResponse.json({ error: 'Stock not found' }, { status: 404 })
 
     await prisma.stock.delete({ where: { id } })
-
     return NextResponse.json({ success: true })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: apiError(error) }, { status: 500 })
   }
+}
+
+function apiError(error: unknown): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') return 'A stock with this ticker already exists'
+    if (error.code === 'P2025') return 'Stock not found'
+    return 'Database error. Please try again.'
+  }
+  const msg = error instanceof Error ? error.message : 'Unknown error'
+  if (msg.includes('PrismaClient') || msg.length > 200) return 'Something went wrong. Please try again.'
+  return msg
 }

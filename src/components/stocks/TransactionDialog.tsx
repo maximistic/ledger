@@ -13,8 +13,11 @@ interface Stock {
   quantity: number
   avgPrice: number
   currentPrice: number
+  holdingsQuantity?: number
   investedValue: number
   currentValue: number
+  displayCurrentValue?: number
+  priceStale?: boolean
 }
 
 interface Transaction {
@@ -79,8 +82,9 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
     }
   }
 
-  const gainLoss   = stock.currentValue - stock.investedValue
-  const gainPct    = stock.investedValue > 0 ? (gainLoss / stock.investedValue) * 100 : 0
+  const displayValue = stock.displayCurrentValue ?? stock.currentValue
+  const gainLoss   = stock.priceStale ? 0 : stock.currentValue - stock.investedValue
+  const gainPct    = !stock.priceStale && stock.investedValue > 0 ? (gainLoss / stock.investedValue) * 100 : 0
   const gainColor  = gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
   function validateTx(): boolean {
@@ -186,7 +190,7 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
           {/* Stats strip */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '14px' }}>
             {[
-              { label: 'Current value', value: formatShort(stock.currentValue), color: 'var(--color-text-primary)' },
+              { label: 'Current value', value: formatShort(displayValue), color: 'var(--color-text-primary)' },
               { label: 'Invested',      value: formatShort(stock.investedValue), color: 'var(--color-text-primary)' },
               { label: 'P&L',           value: formatINRSigned(gainLoss),        color: gainColor },
               { label: 'Returns',       value: formatPctSigned(gainPct),         color: gainColor },

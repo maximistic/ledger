@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing file field' }, { status: 400 })
   }
 
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
+  const buffer = Buffer.from(await file.arrayBuffer())
 
   if (type === 'holdings') {
     return importHoldings(buffer)
@@ -38,8 +37,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ─── Holdings import ──────────────────────────────────────────────────────────
-// Holdings is the source of truth for current position.
-// An existing stock is REPLACED (upserted), not additively merged.
+// holdingsQuantity = file value; quantity = holdingsQuantity + existing txnNet.
 // Importing the same file twice is idempotent.
 
 async function importHoldings(buffer: Buffer): Promise<NextResponse> {
@@ -47,8 +45,7 @@ async function importHoldings(buffer: Buffer): Promise<NextResponse> {
   try {
     rows = parseZerodhaHoldings(buffer)
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Parse error'
-    return NextResponse.json({ error: message }, { status: 422 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Parse error' }, { status: 422 })
   }
 
   if (rows.length === 0) {
@@ -61,43 +58,46 @@ async function importHoldings(buffer: Buffer): Promise<NextResponse> {
 
   for (const row of rows) {
     try {
-      const investedValue = row.quantity * row.avgPrice
-      const currentValue  = row.quantity * row.currentPrice
       const existing = await prisma.stock.findUnique({ where: { ticker: row.ticker } })
 
       if (existing) {
-        // Replace position with file values — idempotent
+        // Preserve existing transactions; recalculate quantity on top of new holdings base
+        const txns = await prisma.stockTransaction.findMany({ where: { stockId: existing.id } })
+        const txnNet = txns.reduce((sum, t) => t.type === 'BUY' ? sum + t.quantity : sum - t.quantity, 0)
+        const newQty = row.quantity + txnNet
+
         await prisma.stock.update({
           where: { id: existing.id },
           data: {
-            sector:        row.sector !== '' ? row.sector : (existing.sector ?? ''),
-            quantity:      row.quantity,
-            avgPrice:      row.avgPrice,
-            currentPrice:  row.currentPrice,
-            investedValue,
-            currentValue,
+            sector:           row.sector !== '' ? row.sector : (existing.sector ?? ''),
+            holdingsQuantity: row.quantity,
+            quantity:         newQty,
+            avgPrice:         row.avgPrice,
+            currentPrice:     row.currentPrice,
+            investedValue:    newQty * row.avgPrice,
+            currentValue:     newQty * row.currentPrice,
           },
         })
         updated++
       } else {
         await prisma.stock.create({
           data: {
-            name:          row.name,
-            ticker:        row.ticker,
-            exchange:      row.exchange,
-            sector:        row.sector,
-            quantity:      row.quantity,
-            avgPrice:      row.avgPrice,
-            currentPrice:  row.currentPrice,
-            investedValue,
-            currentValue,
+            name:            row.name,
+            ticker:          row.ticker,
+            exchange:        row.exchange,
+            sector:          row.sector,
+            holdingsQuantity: row.quantity,
+            quantity:         row.quantity,
+            avgPrice:         row.avgPrice,
+            currentPrice:     row.currentPrice,
+            investedValue:    row.quantity * row.avgPrice,
+            currentValue:     row.quantity * row.currentPrice,
           },
         })
         created++
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'DB error'
-      errors.push(`${row.ticker}: ${message}`)
+      errors.push(`${row.ticker}: ${err instanceof Error ? err.message : 'DB error'}`)
     }
   }
 
@@ -114,8 +114,7 @@ async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
   try {
     rows = parseZerodhaTradeBook(buffer.toString('utf-8'))
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Parse error'
-    return NextResponse.json({ error: message }, { status: 422 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Parse error' }, { status: 422 })
   }
 
   if (rows.length === 0) {
@@ -129,9 +128,9 @@ async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
     byTicker.set(row.ticker, list)
   }
 
-  let processed     = 0
-  let created       = 0
-  let skipped       = 0
+  let processed         = 0
+  let created           = 0
+  let skipped           = 0
   const stocksAffected  = new Set<string>()
   const skippedTickers: string[] = []
   const errors: string[] = []
@@ -159,38 +158,17 @@ async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
       if (toInsert.length > 0) {
         await prisma.stockTransaction.createMany({
           data: toInsert.map(t => ({
-            stockId,
-            date:     t.date,
-            type:     t.type,
-            quantity: t.quantity,
-            price:    t.price,
-            amount:   t.amount,
+            stockId, date: t.date, type: t.type,
+            quantity: t.quantity, price: t.price, amount: t.amount,
           })),
         })
         created += toInsert.length
         stocksAffected.add(ticker)
       }
-
-      // Negative quantity guard — only warn, don't block
-      if (stock.quantity < 0) {
-        await prisma.stock.update({
-          where: { id: stockId },
-          data: { quantity: 0, investedValue: 0, currentValue: 0 },
-        })
-        errors.push(`${ticker}: quantity went negative after tradebook import. Reset to 0. Check if your tradebook date range covers your full history.`)
-      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'DB error'
-      errors.push(`${ticker}: ${message}`)
+      errors.push(`${ticker}: ${err instanceof Error ? err.message : 'DB error'}`)
     }
   }
 
-  return NextResponse.json({
-    processed,
-    created,
-    skipped,
-    stocks: stocksAffected.size,
-    skippedTickers,
-    errors,
-  }, { status: 200 })
+  return NextResponse.json({ processed, created, skipped, stocks: stocksAffected.size, skippedTickers, errors }, { status: 200 })
 }
