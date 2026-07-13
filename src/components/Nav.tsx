@@ -70,7 +70,7 @@ export default function Nav() {
                 href={href}
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '13.5px',
+                  fontSize: '14.5px',
                   padding: '0 16px',
                   height: '52px',
                   display: 'flex',
@@ -81,6 +81,7 @@ export default function Nav() {
                     ? '2px solid var(--nav-indicator)'
                     : '2px solid transparent',
                   textDecoration: 'none',
+                  transition: 'color 160ms ease, border-bottom-color 160ms ease, font-weight 160ms ease',
                 }}
               >
                 {label}
@@ -96,12 +97,12 @@ export default function Nav() {
             width: '32px',
             height: '32px',
             borderRadius: '6px',
-            border: '0.5px solid var(--color-border)',
+            border: '0.5px solid var(--nav-indicator)',
             background: 'var(--color-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--color-text-muted)',
+            color: 'var(--nav-indicator)',
             cursor: 'pointer',
           }}
         >
