@@ -1,26 +1,359 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   LEDGER — Design System
+   globals.css
 
+   All visual tokens live here. To change anything across
+   the entire app, change it once in this file.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   FONTS
+   ------------------------------------------------------------ */
+
+/* ------------------------------------------------------------
+   TAILWIND V4 THEME
+   Maps design tokens to Tailwind utility classes.
+   No tailwind.config.ts in v4 — configuration lives here.
+   ------------------------------------------------------------ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Colors — reference our semantic CSS variables */
+  --color-bg:              var(--color-bg);
+  --color-surface:         var(--color-surface);
+  --color-surface-raised:  var(--color-surface-raised);
+  --color-border:          var(--color-border);
+  --color-border-subtle:   var(--color-border-subtle);
+  --color-text-primary:    var(--color-text-primary);
+  --color-text-secondary:  var(--color-text-secondary);
+  --color-text-muted:      var(--color-text-muted);
+  --color-text-disabled:   var(--color-text-disabled);
+  --color-gain:            var(--color-gain);
+  --color-gain-subtle:     var(--color-gain-subtle);
+  --color-loss:            var(--color-loss);
+  --color-loss-subtle:     var(--color-loss-subtle);
+  --color-neutral:         var(--color-neutral);
+  --color-neutral-subtle:  var(--color-neutral-subtle);
+  --color-focus:           var(--color-focus);
+
+  /* Font family — references the CSS variable set by next/font */
+  --font-dm-sans: var(--font-dm-sans);
+
+  /* Border radius — override Tailwind defaults with our tokens */
+  --radius-sm:   var(--radius-sm);
+  --radius-md:   var(--radius-md);
+  --radius-lg:   var(--radius-lg);
+  --radius-xl:   var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  /* Spacing — map --space-* tokens to Tailwind numeric scale */
+  --spacing-1:   var(--space-1);
+  --spacing-2:   var(--space-2);
+  --spacing-3:   var(--space-3);
+  --spacing-4:   var(--space-4);
+  --spacing-5:   var(--space-5);
+  --spacing-6:   var(--space-6);
+  --spacing-8:   var(--space-8);
+  --spacing-10:  var(--space-10);
+  --spacing-12:  var(--space-12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ------------------------------------------------------------
+   BASE RESET
+   ------------------------------------------------------------ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
 }
+
+/* ------------------------------------------------------------
+   LIGHT THEME (default)
+   ------------------------------------------------------------ */
+:root,
+.light {
+  /* Backgrounds */
+  --color-bg:              #F7F6F2;   /* page background, off-white warm */
+  --color-surface:         #FFFFFF;   /* cards, nav, panels */
+  --color-surface-raised:  #F2F1ED;   /* hover states, subtle depth */
+
+  /* Borders */
+  --color-border:          #E8E6DF;   /* primary borders */
+  --color-border-subtle:   #F0EEE8;   /* row dividers, inner borders */
+
+  /* Text */
+  --color-text-primary:    #111111;   /* headings, values, important */
+  --color-text-secondary:  #555555;   /* body text, descriptions */
+  --color-text-muted:      #AAA8A0;   /* labels, captions, placeholders */
+  --color-text-disabled:   #CCC8BE;   /* disabled states */
+
+  /* Semantic — gains/losses (finance specific) */
+  --color-gain:            #1DB954;   /* positive returns */
+  --color-gain-subtle:     #F0FDF4;   /* gain badge backgrounds */
+  --color-loss:            #E53935;   /* negative returns */
+  --color-loss-subtle:     #FFF5F5;   /* loss badge backgrounds */
+  --color-neutral:         #F59E0B;   /* FDs, neutral/amber */
+  --color-neutral-subtle:  #FFFBEB;   /* neutral badge backgrounds */
+
+  /* Interactive */
+  --color-focus:           #111111;   /* focus rings */
+
+  /* Nav */
+  --nav-bg:                #FFFFFF;
+  --nav-border:            #E8E6DF;
+  --nav-text:              #AAA8A0;
+  --nav-text-active:       #111111;
+  --nav-indicator:         #111111;   /* active underline */
+
+  /* Buttons */
+  --btn-primary-bg:        #111111;
+  --btn-primary-text:      #FFFFFF;
+  --btn-ghost-border:      #E0DED8;
+  --btn-ghost-text:        #6E6A62;
+
+  /* Form fields */
+  --input-bg:              #FFFFFF;
+  --input-border:          #E8E6DF;
+  --input-border-focus:    #111111;
+  --input-text:            #111111;
+  --input-placeholder:     #CCC8BE;
+
+  /* Chart colors — asset classes */
+  --chart-mf:              #111111;   /* mutual funds — primary black */
+  --chart-stock:           #1DB954;   /* stocks — gain green */
+  --chart-fd:              #F59E0B;   /* fixed deposits — amber */
+  --chart-epf:             #6366F1;   /* EPF — calm indigo */
+  --chart-us:              #0EA5E9;   /* US stocks — sky blue */
+  --chart-other:           #D1CFC8;   /* others — muted */
+
+  /* Chart UI */
+  --chart-line:            #111111;
+  --chart-fill:            rgba(17,17,17,0.06);
+  --chart-grid:            #F0EEE8;
+  --chart-label:           #CCC8BE;
+
+  /* Shadows */
+  --shadow-sm:             0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md:             0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg:             0 8px 24px rgba(0,0,0,0.10);
+
+  /* Drawer / modal overlay */
+  --overlay-bg:            rgba(0,0,0,0.3);
+}
+
+/* ------------------------------------------------------------
+   DARK THEME
+   ------------------------------------------------------------ */
+.dark {
+  /* Backgrounds — warm brown-black */
+  --color-bg:              #1A1916;   /* page background */
+  --color-surface:         #211F1C;   /* cards, nav, panels */
+  --color-surface-raised:  #2A2724;   /* hover states, inputs */
+
+  /* Borders */
+  --color-border:          #2E2B27;   /* primary borders */
+  --color-border-subtle:   #252220;   /* row dividers */
+
+  /* Text */
+  --color-text-primary:    #F0EDE4;   /* warm off-white */
+  --color-text-secondary:  #9A9590;   /* body text */
+  --color-text-muted:      #4A4740;   /* labels, captions */
+  --color-text-disabled:   #3A3733;   /* disabled */
+
+  /* Semantic */
+  --color-gain:            #4ADE80;   /* brighter green for dark bg */
+  --color-gain-subtle:     rgba(74,222,128,0.08);
+  --color-loss:            #F87171;   /* softer red for dark bg */
+  --color-loss-subtle:     rgba(248,113,113,0.08);
+  --color-neutral:         #F59E0B;
+  --color-neutral-subtle:  rgba(245,158,11,0.08);
+
+  /* Interactive */
+  --color-focus:           #F0EDE4;
+
+  /* Nav */
+  --nav-bg:                #211F1C;
+  --nav-border:            #2E2B27;
+  --nav-text:              #524E48;
+  --nav-text-active:       #F0EDE4;
+  --nav-indicator:         #F0EDE4;
+
+  /* Buttons */
+  --btn-primary-bg:        #F0EDE4;
+  --btn-primary-text:      #1A1916;
+  --btn-ghost-border:      #2E2B27;
+  --btn-ghost-text:        #6E6A62;
+
+  /* Form fields */
+  --input-bg:              #211F1C;
+  --input-border:          #2E2B27;
+  --input-border-focus:    #F0EDE4;
+  --input-text:            #F0EDE4;
+  --input-placeholder:     #4A4740;
+
+  /* Chart colors */
+  --chart-mf:              #F0EDE4;   /* off-white on dark */
+  --chart-stock:           #4ADE80;
+  --chart-fd:              #F59E0B;
+  --chart-epf:             #818CF8;
+  --chart-us:              #38BDF8;
+  --chart-other:           #3A3733;
+
+  /* Chart UI */
+  --chart-line:            #F0EDE4;
+  --chart-fill:            rgba(240,237,228,0.08);
+  --chart-grid:            #2E2B27;
+  --chart-label:           #3A3733;
+
+  /* Shadows — less visible on dark */
+  --shadow-sm:             0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md:             0 4px 12px rgba(0,0,0,0.3);
+  --shadow-lg:             0 8px 24px rgba(0,0,0,0.4);
+
+  --overlay-bg:            rgba(0,0,0,0.5);
+}
+
+/* ------------------------------------------------------------
+   TYPOGRAPHY SCALE
+   ------------------------------------------------------------ */
+:root {
+  --text-xs:    11px;
+  --text-sm:    12px;
+  --text-base:  13.5px;
+  --text-md:    15px;
+  --text-lg:    18px;
+  --text-xl:    22px;
+  --text-2xl:   28px;
+  --text-3xl:   36px;
+
+  --font-normal:  400;
+  --font-medium:  500;
+  --font-semi:    600;
+
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-loose:  1.8;
+
+  /* Tabular numbers for financial data */
+  --tnum: "tnum";
+}
+
+/* ------------------------------------------------------------
+   SPACING SCALE
+   ------------------------------------------------------------ */
+:root {
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+}
+
+/* ------------------------------------------------------------
+   BORDER RADIUS
+   ------------------------------------------------------------ */
+:root {
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   10px;
+  --radius-xl:   12px;
+  --radius-full: 9999px;
+}
+
+/* ------------------------------------------------------------
+   LAYOUT
+   ------------------------------------------------------------ */
+:root {
+  --nav-height:      52px;
+  --page-max-width:  1280px;
+  --page-padding-x:  40px;
+  --page-padding-y:  36px;
+}
+
+/* ------------------------------------------------------------
+   TRANSITIONS
+   ------------------------------------------------------------ */
+:root {
+  --transition-fast:   120ms ease;
+  --transition-base:   180ms ease;
+  --transition-slow:   280ms ease;
+}
+
+/* ------------------------------------------------------------
+   GLOBAL UTILITY CLASSES
+   ------------------------------------------------------------ */
+
+/* Financial number rendering */
+.num {
+  font-feature-settings: var(--tnum);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gain / loss text colors */
+.text-gain    { color: var(--color-gain); }
+.text-loss    { color: var(--color-loss); }
+.text-neutral { color: var(--color-neutral); }
+.text-muted   { color: var(--color-text-muted); }
+.text-primary { color: var(--color-text-primary); }
+
+/* Surface backgrounds */
+.bg-surface        { background-color: var(--color-surface); }
+.bg-surface-raised { background-color: var(--color-surface-raised); }
+
+/* Focus ring — consistent across all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Remove default link styles */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Prevent layout shift from scrollbar */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Thin scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
