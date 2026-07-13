@@ -4,6 +4,15 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { X, Search, Loader2 } from 'lucide-react'
 import { formatINR } from '@/lib/utils'
 
+function cleanError(msg?: string): string {
+  if (!msg) return 'Something went wrong. Please try again.'
+  // Hide Prisma internals and raw stack traces
+  if (msg.includes('PrismaClient') || msg.includes('prisma') || msg.length > 200) {
+    return 'Something went wrong. Please try again.'
+  }
+  return msg
+}
+
 interface StockResult {
   ticker: string
   name: string
@@ -176,14 +185,14 @@ export default function AddEditStockDialog({ mode, stock, onClose, onSuccess }: 
 
       if (!res.ok) {
         const data = await res.json() as { error?: string }
-        setSubmitError(data.error ?? 'Something went wrong')
+        setSubmitError(cleanError(data.error))
         return
       }
 
       onSuccess()
       onClose()
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Network error')
+    } catch {
+      setSubmitError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }

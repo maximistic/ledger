@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateStockMetrics } from '@/lib/stockUtils'
 import { parseZerodhaHoldings } from '@/lib/parsers/zerodhaHoldings'
 import { parseZerodhaTradeBook } from '@/lib/parsers/zerodhaTradeBook'
 
@@ -38,6 +37,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ─── Holdings import ──────────────────────────────────────────────────────────
+// Holdings is the source of truth for current position.
+// An existing stock is REPLACED (upserted), not additively merged.
+// Importing the same file twice is idempotent.
+
 async function importHoldings(buffer: Buffer): Promise<NextResponse> {
   let rows: Awaited<ReturnType<typeof parseZerodhaHoldings>>
   try {
@@ -57,37 +61,36 @@ async function importHoldings(buffer: Buffer): Promise<NextResponse> {
 
   for (const row of rows) {
     try {
+      const investedValue = row.quantity * row.avgPrice
+      const currentValue  = row.quantity * row.currentPrice
       const existing = await prisma.stock.findUnique({ where: { ticker: row.ticker } })
 
       if (existing) {
-        // Merge: recalculate weighted avg from existing + incoming
-        const mergedQty      = existing.quantity + row.quantity
-        const mergedAvg      = (existing.investedValue + row.quantity * row.avgPrice) / mergedQty
-        const mergedInvested = mergedQty * mergedAvg
-        const mergedCurrent  = mergedQty * existing.currentPrice
-
+        // Replace position with file values — idempotent
         await prisma.stock.update({
           where: { id: existing.id },
           data: {
-            quantity:     mergedQty,
-            avgPrice:     mergedAvg,
-            investedValue: mergedInvested,
-            currentValue:  mergedCurrent,
+            sector:        row.sector !== '' ? row.sector : (existing.sector ?? ''),
+            quantity:      row.quantity,
+            avgPrice:      row.avgPrice,
+            currentPrice:  row.currentPrice,
+            investedValue,
+            currentValue,
           },
         })
         updated++
       } else {
-        const investedValue = row.quantity * row.avgPrice
         await prisma.stock.create({
           data: {
-            name:         row.name,
-            ticker:       row.ticker,
-            exchange:     row.exchange,
-            quantity:     row.quantity,
-            avgPrice:     row.avgPrice,
-            currentPrice: row.avgPrice,
+            name:          row.name,
+            ticker:        row.ticker,
+            exchange:      row.exchange,
+            sector:        row.sector,
+            quantity:      row.quantity,
+            avgPrice:      row.avgPrice,
+            currentPrice:  row.currentPrice,
             investedValue,
-            currentValue: investedValue,
+            currentValue,
           },
         })
         created++
@@ -98,8 +101,13 @@ async function importHoldings(buffer: Buffer): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ created, updated, errors }, { status: 200 })
+  return NextResponse.json({ created, updated, skipped: 0, errors }, { status: 200 })
 }
+
+// ─── Tradebook import ─────────────────────────────────────────────────────────
+// Tradebook only enriches existing stocks with transaction history.
+// Tickers not in the DB are skipped — never created.
+// Stock quantity/position is NOT updated; holdings owns that.
 
 async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
   let rows: Awaited<ReturnType<typeof parseZerodhaTradeBook>>
@@ -114,7 +122,6 @@ async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
     return NextResponse.json({ error: 'No valid rows found in file' }, { status: 422 })
   }
 
-  // Group trades by ticker
   const byTicker = new Map<string, typeof rows>()
   for (const row of rows) {
     const list = byTicker.get(row.ticker) ?? []
@@ -122,79 +129,68 @@ async function importTradeBook(buffer: Buffer): Promise<NextResponse> {
     byTicker.set(row.ticker, list)
   }
 
-  let inserted = 0
-  let skipped  = 0
+  let processed     = 0
+  let created       = 0
+  let skipped       = 0
+  const stocksAffected  = new Set<string>()
+  const skippedTickers: string[] = []
   const errors: string[] = []
 
   for (const [ticker, trades] of byTicker) {
     try {
-      // Ensure the stock record exists
-      let stock = await prisma.stock.findUnique({ where: { ticker } })
+      const stock = await prisma.stock.findUnique({ where: { ticker } })
+
       if (!stock) {
-        const exchange = trades[0].exchange
-        stock = await prisma.stock.create({
-          data: {
-            name:         ticker,
-            ticker,
-            exchange,
-            quantity:     0,
-            avgPrice:     0,
-            currentPrice: 0,
-            investedValue: 0,
-            currentValue: 0,
-          },
-        })
-      }
-
-      const stockId = stock.id
-
-      // Fetch existing transactions to deduplicate
-      const existing = await prisma.stockTransaction.findMany({ where: { stockId } })
-      const dedupKey = (t: { date: Date; type: string; quantity: number; price: number }) =>
-        `${new Date(t.date).toISOString().slice(0, 10)}|${t.type}|${t.quantity}|${t.price}`
-
-      const existingKeys = new Set(existing.map(dedupKey))
-
-      const toInsert = trades.filter(t => !existingKeys.has(dedupKey(t)))
-
-      if (toInsert.length === 0) {
+        skippedTickers.push(ticker)
         skipped += trades.length
         continue
       }
 
-      await prisma.stockTransaction.createMany({
-        data: toInsert.map(t => ({
-          stockId,
-          date:     t.date,
-          type:     t.type,
-          quantity: t.quantity,
-          price:    t.price,
-          amount:   t.amount,
-        })),
-      })
+      const stockId = stock.id
+      const existing = await prisma.stockTransaction.findMany({ where: { stockId } })
+      const key = (t: { date: Date; type: string; quantity: number; price: number }) =>
+        `${new Date(t.date).toISOString().slice(0, 10)}|${t.type}|${t.quantity}|${t.price}`
+      const existingKeys = new Set(existing.map(key))
+      const toInsert = trades.filter(t => !existingKeys.has(key(t)))
 
-      inserted += toInsert.length
-      skipped  += trades.length - toInsert.length
+      processed += trades.length
+      skipped   += trades.length - toInsert.length
 
-      // Recalculate stock metrics from all transactions
-      const allTransactions = await prisma.stockTransaction.findMany({ where: { stockId } })
-      const metrics = calculateStockMetrics(allTransactions)
-      const currentValue = metrics.quantity * stock.currentPrice
+      if (toInsert.length > 0) {
+        await prisma.stockTransaction.createMany({
+          data: toInsert.map(t => ({
+            stockId,
+            date:     t.date,
+            type:     t.type,
+            quantity: t.quantity,
+            price:    t.price,
+            amount:   t.amount,
+          })),
+        })
+        created += toInsert.length
+        stocksAffected.add(ticker)
+      }
 
-      await prisma.stock.update({
-        where: { id: stockId },
-        data: {
-          quantity:     metrics.quantity,
-          avgPrice:     metrics.avgPrice,
-          investedValue: metrics.investedValue,
-          currentValue,
-        },
-      })
+      // Negative quantity guard — only warn, don't block
+      if (stock.quantity < 0) {
+        await prisma.stock.update({
+          where: { id: stockId },
+          data: { quantity: 0, investedValue: 0, currentValue: 0 },
+        })
+        errors.push(`${ticker}: quantity went negative after tradebook import. Reset to 0. Check if your tradebook date range covers your full history.`)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'DB error'
       errors.push(`${ticker}: ${message}`)
     }
   }
 
-  return NextResponse.json({ inserted, skipped, errors }, { status: 200 })
+  return NextResponse.json({
+    processed,
+    created,
+    skipped,
+    stocks: stocksAffected.size,
+    skippedTickers,
+    errors,
+  }, { status: 200 })
 }

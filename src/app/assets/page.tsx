@@ -276,10 +276,10 @@ export default function AssetsPage() {
     try {
       const res = await fetch('/api/stocks')
       const data = await res.json() as { stocks?: StockItem[]; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch')
+      if (!res.ok) throw new Error(data.error)
       setStocks(data.stocks ?? [])
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load stocks')
+    } catch {
+      setFetchError('Could not load your stocks. Please refresh the page.')
     } finally {
       setLoading(false)
     }

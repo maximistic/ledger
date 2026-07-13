@@ -18,16 +18,19 @@ interface RawTradeRow {
   segment?: string
   series?: string
   trade_type?: string
+  auction?: string | boolean
   quantity?: string | number
   price?: string | number
+  trade_id?: string
+  order_id?: string
   order_execution_time?: string
   [key: string]: unknown
 }
 
 function parseDate(raw: string): Date {
-  // Zerodha format: DD-MM-YYYY
-  const [d, m, y] = raw.trim().split('-')
-  return new Date(+y, +m - 1, +d)
+  // Zerodha format is DD-MM-YYYY — split explicitly, never use new Date(raw)
+  const parts = raw.trim().split('-')
+  return new Date(+parts[2], +parts[1] - 1, +parts[0])
 }
 
 export function parseZerodhaTradeBook(csvText: string): TradeRow[] {
@@ -48,7 +51,11 @@ export function parseZerodhaTradeBook(csvText: string): TradeRow[] {
     const rawTicker = String(row.symbol ?? '').trim()
     if (!rawTicker) continue
 
-    // Skip auction trades (series === 'BE' or segment contains 'auction')
+    // Skip auction trades — auction column can be boolean true or string "true"/"1"/"yes"
+    const auctionVal = row.auction
+    if (auctionVal === true || String(auctionVal ?? '').toLowerCase() === 'true' || String(auctionVal ?? '') === '1') continue
+
+    // Skip BE series (exchange-settled, auction-type)
     const series  = String(row.series ?? '').trim().toUpperCase()
     const segment = String(row.segment ?? '').trim().toLowerCase()
     if (series === 'BE' || segment.includes('auction')) continue
@@ -58,6 +65,7 @@ export function parseZerodhaTradeBook(csvText: string): TradeRow[] {
     if (!rawQty || rawQty <= 0) continue
     if (!rawPrice || rawPrice <= 0) continue
 
+    // trade_type from Zerodha is lowercase 'buy'/'sell' — uppercase it
     const rawType = String(row.trade_type ?? '').trim().toUpperCase()
     if (rawType !== 'BUY' && rawType !== 'SELL') continue
 
@@ -72,7 +80,7 @@ export function parseZerodhaTradeBook(csvText: string): TradeRow[] {
       continue
     }
 
-    // Determine exchange: prefer explicit column, fallback to NSE
+    // Exchange: prefer explicit column, default NSE
     let exchange = 'NSE'
     const rawExchange = String(row.exchange ?? '').trim().toUpperCase()
     if (rawExchange === 'BSE' || rawExchange === 'NSE') exchange = rawExchange
@@ -86,10 +94,13 @@ export function parseZerodhaTradeBook(csvText: string): TradeRow[] {
       date,
       type: rawType as 'BUY' | 'SELL',
       quantity: rawQty,
-      price: rawPrice,
+      price:    rawPrice,
       amount,
     })
   }
+
+  // Sort chronologically so running balance calculations are correct
+  results.sort((a, b) => a.date.getTime() - b.date.getTime())
 
   return results
 }

@@ -4,8 +4,10 @@ export interface HoldingRow {
   ticker: string
   name: string
   exchange: string
+  sector: string
   quantity: number
   avgPrice: number
+  currentPrice: number
 }
 
 export function parseZerodhaHoldings(buffer: Buffer): HoldingRow[] {
@@ -13,12 +15,12 @@ export function parseZerodhaHoldings(buffer: Buffer): HoldingRow[] {
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })
 
-  // Find the header row by looking for 'Symbol' as first non-empty cell
+  // Find the header row: first row whose first non-empty cell is exactly "Symbol"
   let headerIdx = -1
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     const first = row.find(cell => cell !== null && cell !== undefined && String(cell).trim() !== '')
-    if (first && String(first).trim().toLowerCase() === 'symbol') {
+    if (first && String(first).trim() === 'Symbol') {
       headerIdx = i
       break
     }
@@ -26,18 +28,21 @@ export function parseZerodhaHoldings(buffer: Buffer): HoldingRow[] {
 
   if (headerIdx === -1) throw new Error('Could not find header row with "Symbol" column')
 
-  const headers = (rows[headerIdx] as unknown[]).map(h => String(h ?? '').trim().toLowerCase())
-
+  // Map column names by exact match (case-sensitive, as Zerodha exports them)
+  const headers = (rows[headerIdx] as unknown[]).map(h => String(h ?? '').trim())
   const col = (name: string) => headers.indexOf(name)
-  const symbolIdx    = col('symbol')
-  const isinIdx      = col('isin')
-  const quantityIdx  = col('quantity')
-  const avgPriceIdx  = col('average cost')
-  const exchangeIdx  = col('exchange')
+
+  const symbolIdx       = col('Symbol')
+  const sectorIdx       = col('Sector')
+  const quantityIdx     = col('Quantity Available')
+  const avgPriceIdx     = col('Average Price')
+  const currentPriceIdx = col('Previous Closing Price')
+  const isinIdx         = col('ISIN')
+  const exchangeIdx     = col('Exchange')
 
   if (symbolIdx === -1) throw new Error('Missing "Symbol" column')
-  if (quantityIdx === -1) throw new Error('Missing "Quantity" column')
-  if (avgPriceIdx === -1) throw new Error('Missing "Average Cost" column')
+  if (quantityIdx === -1) throw new Error('Missing "Quantity Available" column — ensure file is a Zerodha Holdings XLSX')
+  if (avgPriceIdx === -1) throw new Error('Missing "Average Price" column')
 
   const results: HoldingRow[] = []
 
@@ -54,26 +59,33 @@ export function parseZerodhaHoldings(buffer: Buffer): HoldingRow[] {
     const avgPrice = parseFloat(String(row[avgPriceIdx] ?? '0'))
     if (!avgPrice || avgPrice <= 0) continue
 
+    // currentPrice: use "Previous Closing Price" if available, fall back to avgPrice
+    let currentPrice = avgPrice
+    if (currentPriceIdx !== -1 && row[currentPriceIdx]) {
+      const cp = parseFloat(String(row[currentPriceIdx]))
+      if (cp > 0) currentPrice = cp
+    }
+
     // Strip "-E" suffix from ETF tickers (e.g. GOLDBEES-E → GOLDBEES)
     const ticker = rawTicker.replace(/-E$/, '')
 
-    // Derive exchange from ISIN: INE = NSE, otherwise check exchange column
+    // Sector
+    const sector = sectorIdx !== -1 && row[sectorIdx]
+      ? String(row[sectorIdx]).trim()
+      : ''
+
+    // Exchange: prefer explicit column, then ISIN prefix, default NSE
     let exchange = 'NSE'
     if (exchangeIdx !== -1 && row[exchangeIdx]) {
       const raw = String(row[exchangeIdx]).trim().toUpperCase()
       if (raw === 'BSE' || raw === 'NSE') exchange = raw
     } else if (isinIdx !== -1 && row[isinIdx]) {
       const isin = String(row[isinIdx]).trim()
-      if (isin.startsWith('INF')) exchange = 'NSE' // MF/ETF
+      if (isin.startsWith('INF')) exchange = 'NSE'
     }
 
-    // Use ticker as name fallback; holdings file rarely has a separate name column
-    const nameIdx = col('instrument')
-    const name = nameIdx !== -1 && row[nameIdx]
-      ? String(row[nameIdx]).trim()
-      : ticker
-
-    results.push({ ticker, name, exchange, quantity, avgPrice })
+    // Use ticker as name; holdings XLSX doesn't have a separate instrument name column
+    results.push({ ticker, name: ticker, exchange, sector, quantity, avgPrice, currentPrice })
   }
 
   return results

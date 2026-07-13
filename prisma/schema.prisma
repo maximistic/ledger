@@ -16,7 +16,7 @@ model Stock {
   name               String
   ticker             String             @unique
   exchange           String             @default("NSE")
-  sector             String?
+  sector             String?            @default("")
   quantity           Float
   avgPrice           Float
   currentPrice       Float              @default(0)

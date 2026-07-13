@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const includeZero = request.nextUrl.searchParams.get('includeZero') === 'true'
     const stocks = await prisma.stock.findMany({
+      where: includeZero ? undefined : { quantity: { gt: 0 } },
       orderBy: { name: 'asc' },
       include: { _count: { select: { transactions: true } } },
     })
@@ -69,10 +71,11 @@ export async function POST(request: Request) {
       const stock = await prisma.stock.update({
         where: { id: existing.id },
         data: {
-          quantity:     mergedQty,
-          avgPrice:     mergedAvgPrice,
+          quantity:      mergedQty,
+          avgPrice:      mergedAvgPrice,
           investedValue: mergedInvestedValue,
           currentValue:  mergedCurrentValue,
+          ...(typeof sector === 'string' && sector.trim() ? { sector: sector.trim() } : {}),
         },
       })
 

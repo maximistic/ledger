@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateStockMetrics } from '@/lib/stockUtils'
 import { parseZerodhaTradeBook } from '@/lib/parsers/zerodhaTradeBook'
+
+// Tradebook only enriches existing stocks with transaction history.
+// Tickers not found in the DB are skipped — never created.
+// Stock quantity/position is NOT overwritten; holdings owns that.
 
 export async function POST(request: NextRequest) {
   let formData: FormData
@@ -36,23 +39,22 @@ export async function POST(request: NextRequest) {
     byTicker.set(row.ticker, list)
   }
 
-  let inserted = 0
-  let skipped  = 0
-  const stocksAffected = new Set<string>()
+  let processed         = 0
+  let created           = 0
+  let skipped           = 0
+  const stocksAffected  = new Set<string>()
+  const skippedTickers: string[] = []
   const errors: string[] = []
 
   for (const [ticker, trades] of byTicker) {
     try {
-      let stock = await prisma.stock.findUnique({ where: { ticker } })
+      const stock = await prisma.stock.findUnique({ where: { ticker } })
+
       if (!stock) {
-        stock = await prisma.stock.create({
-          data: {
-            name: ticker, ticker,
-            exchange: trades[0].exchange,
-            quantity: 0, avgPrice: 0,
-            currentPrice: 0, investedValue: 0, currentValue: 0,
-          },
-        })
+        // Not in holdings — skip entirely, never create ghost records
+        skippedTickers.push(ticker)
+        skipped += trades.length
+        continue
       }
 
       const stockId = stock.id
@@ -62,26 +64,43 @@ export async function POST(request: NextRequest) {
       const existingKeys = new Set(existing.map(key))
       const toInsert = trades.filter(t => !existingKeys.has(key(t)))
 
-      skipped += trades.length - toInsert.length
+      processed += trades.length
+      skipped   += trades.length - toInsert.length
 
       if (toInsert.length > 0) {
         await prisma.stockTransaction.createMany({
-          data: toInsert.map(t => ({ stockId, date: t.date, type: t.type, quantity: t.quantity, price: t.price, amount: t.amount })),
+          data: toInsert.map(t => ({
+            stockId,
+            date:     t.date,
+            type:     t.type,
+            quantity: t.quantity,
+            price:    t.price,
+            amount:   t.amount,
+          })),
         })
-        inserted += toInsert.length
+        created += toInsert.length
         stocksAffected.add(ticker)
+      }
 
-        const allTx = await prisma.stockTransaction.findMany({ where: { stockId } })
-        const m = calculateStockMetrics(allTx)
+      // Negative quantity guard — warn only, reset to 0
+      if (stock.quantity < 0) {
         await prisma.stock.update({
           where: { id: stockId },
-          data: { quantity: m.quantity, avgPrice: m.avgPrice, investedValue: m.investedValue, currentValue: m.quantity * stock.currentPrice },
+          data: { quantity: 0, investedValue: 0, currentValue: 0 },
         })
+        errors.push(`${ticker}: quantity went negative after tradebook import. Reset to 0. Check if your tradebook date range covers your full history.`)
       }
     } catch (err) {
       errors.push(`${ticker}: ${err instanceof Error ? err.message : 'DB error'}`)
     }
   }
 
-  return NextResponse.json({ inserted, skipped, stocksAffected: stocksAffected.size, errors })
+  return NextResponse.json({
+    processed,
+    created,
+    skipped,
+    stocks: stocksAffected.size,
+    skippedTickers,
+    errors,
+  })
 }

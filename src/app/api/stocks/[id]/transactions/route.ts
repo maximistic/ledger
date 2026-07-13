@@ -75,14 +75,24 @@ export async function POST(request: Request, { params }: Ctx) {
       where: { stockId: id },
     })
 
-    const metrics      = calculateStockMetrics(allTransactions)
+    const metrics = calculateStockMetrics(allTransactions)
+
+    if (metrics.quantity < 0) {
+      // Roll back the transaction we just created
+      await prisma.stockTransaction.delete({ where: { id: transaction.id } })
+      return NextResponse.json(
+        { error: 'Transaction would result in negative quantity. Check your buy/sell amounts.' },
+        { status: 400 }
+      )
+    }
+
     const currentValue = metrics.quantity * stock.currentPrice
 
     const updatedStock = await prisma.stock.update({
       where: { id },
       data: {
-        quantity:     metrics.quantity,
-        avgPrice:     metrics.avgPrice,
+        quantity:      metrics.quantity,
+        avgPrice:      metrics.avgPrice,
         investedValue: metrics.investedValue,
         currentValue,
       },

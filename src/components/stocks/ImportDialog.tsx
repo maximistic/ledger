@@ -5,8 +5,23 @@ import { X, Upload, CheckCircle, ChevronDown } from 'lucide-react'
 
 type ImportTab = 'holdings' | 'tradebook'
 
+function cleanError(msg?: string): string {
+  if (!msg) return 'Something went wrong. Please try again.'
+  if (msg.includes('PrismaClient') || msg.includes('prisma') || msg.length > 200) {
+    return 'Something went wrong. Please try again.'
+  }
+  return msg
+}
+
 interface HoldingsResult { created: number; updated: number; skipped: number; errors: string[] }
-interface TradebookResult { inserted: number; skipped: number; stocksAffected: number; errors: string[] }
+interface TradebookResult {
+  processed: number
+  created: number
+  skipped: number
+  stocks: number
+  skippedTickers: string[]
+  errors: string[]
+}
 
 interface Props {
   onClose: () => void
@@ -21,6 +36,7 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
   const [holdingsResult, setHoldingsResult] = useState<HoldingsResult | null>(null)
   const [tradebookResult, setTradebookResult] = useState<TradebookResult | null>(null)
   const [errorsExpanded, setErrorsExpanded] = useState(false)
+  const [skippedExpanded, setSkippedExpanded] = useState(false)
 
   const overlayRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -41,6 +57,7 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
     setHoldingsResult(null)
     setTradebookResult(null)
     setErrorsExpanded(false)
+    setSkippedExpanded(false)
   }
 
   function handleFileDrop(e: React.DragEvent) {
@@ -67,15 +84,15 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
       const data = await res.json() as HoldingsResult & TradebookResult & { error?: string }
 
       if (!res.ok) {
-        setError(data.error ?? 'Import failed')
+        setError(cleanError(data.error))
         return
       }
 
       if (tab === 'holdings') setHoldingsResult(data)
       else setTradebookResult(data)
       onSuccess()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error')
+    } catch {
+      setError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -150,6 +167,8 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
               tradebook={tradebookResult}
               errorsExpanded={errorsExpanded}
               setErrorsExpanded={setErrorsExpanded}
+              skippedExpanded={skippedExpanded}
+              setSkippedExpanded={setSkippedExpanded}
             />
           ) : (
             <>
@@ -278,28 +297,33 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
 }
 
 function ResultView({
-  tab, holdings, tradebook, errorsExpanded, setErrorsExpanded,
+  tab, holdings, tradebook,
+  errorsExpanded, setErrorsExpanded,
+  skippedExpanded, setSkippedExpanded,
 }: {
   tab: ImportTab
   holdings: HoldingsResult | null
   tradebook: TradebookResult | null
   errorsExpanded: boolean
   setErrorsExpanded: (v: boolean) => void
+  skippedExpanded: boolean
+  setSkippedExpanded: (v: boolean) => void
 }) {
   const rows = tab === 'holdings'
     ? [
-        { label: 'Stocks imported', value: holdings?.created ?? 0, color: 'var(--color-gain)' },
-        { label: 'Updated',         value: holdings?.updated ?? 0, color: 'var(--color-text-primary)' },
+        { label: 'Stocks created',  value: holdings?.created ?? 0, color: 'var(--color-gain)' },
+        { label: 'Stocks updated',  value: holdings?.updated ?? 0, color: 'var(--color-text-primary)' },
         { label: 'Errors',          value: holdings?.errors.length ?? 0, color: holdings && holdings.errors.length > 0 ? 'var(--color-loss)' : 'var(--color-text-muted)' },
       ]
     : [
-        { label: 'Transactions processed', value: tradebook?.inserted ?? 0, color: 'var(--color-gain)' },
-        { label: 'Skipped (duplicates)',   value: tradebook?.skipped ?? 0,  color: 'var(--color-text-primary)' },
-        { label: 'Stocks affected',        value: tradebook?.stocksAffected ?? 0, color: 'var(--color-text-primary)' },
-        { label: 'Errors',                 value: tradebook?.errors.length ?? 0, color: tradebook && tradebook.errors.length > 0 ? 'var(--color-loss)' : 'var(--color-text-muted)' },
+        { label: 'Transactions added',    value: tradebook?.created ?? 0,   color: 'var(--color-gain)' },
+        { label: 'Skipped (duplicates)',  value: tradebook?.skipped ?? 0,   color: 'var(--color-text-primary)' },
+        { label: 'Stocks affected',       value: tradebook?.stocks ?? 0,    color: 'var(--color-text-primary)' },
+        { label: 'Errors',                value: tradebook?.errors.length ?? 0, color: tradebook && tradebook.errors.length > 0 ? 'var(--color-loss)' : 'var(--color-text-muted)' },
       ]
 
-  const errors = tab === 'holdings' ? (holdings?.errors ?? []) : (tradebook?.errors ?? [])
+  const errors         = tab === 'holdings' ? (holdings?.errors ?? []) : (tradebook?.errors ?? [])
+  const skippedTickers = tab === 'tradebook' ? (tradebook?.skippedTickers ?? []) : []
 
   return (
     <div>
@@ -323,8 +347,43 @@ function ResultView({
         ))}
       </div>
 
-      {errors.length > 0 && (
+      {/* Skipped tickers — informational, not an error */}
+      {skippedTickers.length > 0 && (
         <div style={{ marginTop: '12px' }}>
+          <button
+            onClick={() => setSkippedExpanded(!skippedExpanded)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '12px', color: 'var(--color-text-muted)', fontFamily: 'inherit',
+              padding: '0',
+            }}
+          >
+            <ChevronDown size={13} style={{ transform: skippedExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 160ms' }} />
+            {skippedTickers.length} ticker{skippedTickers.length > 1 ? 's' : ''} skipped (not in your holdings)
+          </button>
+          {skippedExpanded && (
+            <div style={{
+              marginTop: '8px', background: 'var(--color-surface)',
+              border: '0.5px solid var(--color-border)',
+              borderRadius: '8px', padding: '10px 14px',
+            }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>
+                Import your <strong>Holdings</strong> file first, then import Tradebook to add transaction history.
+              </div>
+              <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                {skippedTickers.map((t, i) => (
+                  <div key={i} style={{ fontSize: '12px', color: 'var(--color-text-muted)', padding: '2px 0', fontVariantNumeric: 'tabular-nums' }}>{t}</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Errors */}
+      {errors.length > 0 && (
+        <div style={{ marginTop: '10px' }}>
           <button
             onClick={() => setErrorsExpanded(!errorsExpanded)}
             style={{
