@@ -30,12 +30,13 @@ export async function POST(request: Request) {
       name?: unknown
       ticker?: unknown
       exchange?: unknown
+      sector?: unknown
       quantity?: unknown
       avgPrice?: unknown
       currentPrice?: unknown
     }
 
-    const { name, ticker, exchange, quantity, avgPrice, currentPrice } = body
+    const { name, ticker, exchange, sector, quantity, avgPrice, currentPrice } = body
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
         name:         name.trim(),
         ticker:       normalizedTicker,
         exchange:     typeof exchange === 'string' ? exchange.trim() : 'NSE',
+        sector:       typeof sector === 'string' && sector.trim() ? sector.trim() : null,
         quantity,
         avgPrice,
         currentPrice: cp,

@@ -36,6 +36,7 @@ export async function PUT(request: Request, { params }: Ctx) {
       name?: unknown
       ticker?: unknown
       exchange?: unknown
+      sector?: unknown
       quantity?: unknown
       avgPrice?: unknown
       currentPrice?: unknown
@@ -48,9 +49,10 @@ export async function PUT(request: Request, { params }: Ctx) {
     const stock = await prisma.stock.update({
       where: { id },
       data: {
-        ...(typeof body.name     === 'string' ? { name:     body.name.trim() }             : {}),
+        ...(typeof body.name     === 'string' ? { name:     body.name.trim() }                 : {}),
         ...(typeof body.ticker   === 'string' ? { ticker:   body.ticker.trim().toUpperCase() } : {}),
-        ...(typeof body.exchange === 'string' ? { exchange: body.exchange.trim() }          : {}),
+        ...(typeof body.exchange === 'string' ? { exchange: body.exchange.trim() }             : {}),
+        ...(typeof body.sector   === 'string' ? { sector:   body.sector.trim() || null }       : {}),
         quantity,
         avgPrice,
         currentPrice,

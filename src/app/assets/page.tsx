@@ -1,77 +1,44 @@
 'use client'
 
-import { useState } from 'react'
-import { Upload, Plus } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Upload, Plus, TrendingUp, RefreshCw, Pencil } from 'lucide-react'
+import { formatINR, formatShort, formatShortSigned, formatPctSigned } from '@/lib/utils'
+import AddEditStockDialog from '@/components/stocks/AddEditStockDialog'
+import TransactionDialog from '@/components/stocks/TransactionDialog'
+import ImportDialog from '@/components/stocks/ImportDialog'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'stocks' | 'mf' | 'fd' | 'epf' | 'us'
 
-// ─── Dummy data ───────────────────────────────────────────────────────────────
+interface StockItem {
+  id: string
+  ticker: string
+  name: string
+  exchange: string
+  sector?: string | null
+  quantity: number
+  avgPrice: number
+  currentPrice: number
+  investedValue: number
+  currentValue: number
+  gainLoss: number
+  gainLossPct: number
+  transactionCount: number
+}
 
-const assetClasses: { value: Tab; label: string; countLabel: string; invested: number }[] = [
-  { value: 'stocks', label: 'Stocks',       countLabel: '5 holdings',  invested: 85290  },
-  { value: 'mf',     label: 'Mutual Funds', countLabel: '3 schemes',   invested: 150000 },
-  { value: 'fd',     label: 'FDs & RDs',    countLabel: '2 accounts',  invested: 200000 },
-  { value: 'epf',    label: 'EPF',          countLabel: '1 account',   invested: 320000 },
-  { value: 'us',     label: 'US Stocks',    countLabel: '4 holdings',  invested: 85000  },
+// ─── Static rail data for non-stocks tabs ─────────────────────────────────────
+
+const otherAssets: { value: Exclude<Tab, 'stocks'>; label: string; countLabel: string; invested: number }[] = [
+  { value: 'mf',  label: 'Mutual Funds', countLabel: '3 schemes',   invested: 150000 },
+  { value: 'fd',  label: 'FDs & RDs',    countLabel: '2 accounts',  invested: 200000 },
+  { value: 'epf', label: 'EPF',          countLabel: '1 account',   invested: 320000 },
+  { value: 'us',  label: 'US Stocks',    countLabel: '4 holdings',  invested: 85000  },
 ]
 
-const tabInfo: Record<Tab, {
-  label: string; addLabel: string
-  currentValue: number; invested: number; gain: number; gainPct: number
-}> = {
-  stocks: { label: 'Stocks',       addLabel: 'Add Stock',   currentValue: 88870,  invested: 85290,  gain: 3580,  gainPct: 4.2   },
-  mf:     { label: 'Mutual Funds', addLabel: 'Add Fund',    currentValue: 165000, invested: 150000, gain: 15000, gainPct: 10.0  },
-  fd:     { label: 'FDs & RDs',    addLabel: 'Add FD',      currentValue: 212000, invested: 200000, gain: 12000, gainPct: 6.0   },
-  epf:    { label: 'EPF',          addLabel: 'Update EPF',  currentValue: 356000, invested: 320000, gain: 36000, gainPct: 11.25 },
-  us:     { label: 'US Stocks',    addLabel: 'Add Stock',   currentValue: 92000,  invested: 85000,  gain: 7000,  gainPct: 8.2   },
-}
+// ─── Grid ─────────────────────────────────────────────────────────────────────
 
-interface StockHolding {
-  ticker: string; name: string; exchange: string
-  qty: number; avgPrice: number; currentPrice: number
-}
-
-const stocksData: StockHolding[] = [
-  { ticker: 'RELIANCE', name: 'Reliance Industries',      exchange: 'NSE', qty: 10,  avgPrice: 2450.00, currentPrice: 2687.50 },
-  { ticker: 'TCS',      name: 'Tata Consultancy Services', exchange: 'NSE', qty: 5,   avgPrice: 3200.00, currentPrice: 3567.80 },
-  { ticker: 'GOLDBEES', name: 'Nippon India ETF Gold BeES',exchange: 'NSE', qty: 150, avgPrice: 54.20,   currentPrice: 58.45   },
-  { ticker: 'INFY',     name: 'Infosys Ltd',              exchange: 'NSE', qty: 15,  avgPrice: 1580.00, currentPrice: 1423.60 },
-  { ticker: 'HDFCBANK', name: 'HDFC Bank Ltd',            exchange: 'NSE', qty: 8,   avgPrice: 1620.00, currentPrice: 1754.30 },
-]
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function fmtShort(value: number): string {
-  const abs = Math.abs(value)
-  if (abs >= 100000) return `₹${(abs / 100000).toFixed(1)}L`
-  if (abs >= 1000)   return `₹${(abs / 1000).toFixed(1)}K`
-  return `₹${Math.round(abs)}`
-}
-
-function fmtShortSigned(value: number): string {
-  const sign = value >= 0 ? '+' : '−'
-  return `${sign}${fmtShort(Math.abs(value))}`
-}
-
-function fmtPctSigned(value: number): string {
-  const sign = value >= 0 ? '+' : '−'
-  return `${sign}${Math.abs(value).toFixed(1)}%`
-}
-
-function fmtPrice(value: number): string {
-  return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function fmtPnlAmount(value: number): string {
-  const sign = value >= 0 ? '+' : '−'
-  return `${sign}₹${Math.abs(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// ─── Stocks table ─────────────────────────────────────────────────────────────
-
-const gridCols = '2.2fr 0.6fr 1fr 1fr 1fr'
+const gridCols = '2.2fr 0.6fr 1fr 1fr 1fr 32px'
 
 const headerCell: React.CSSProperties = {
   fontSize: '10.5px',
@@ -81,7 +48,87 @@ const headerCell: React.CSSProperties = {
   fontWeight: 500,
 }
 
-function StocksTable() {
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonTable() {
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{
+        background: 'var(--color-surface)',
+        border: '0.5px solid var(--color-border)',
+        borderRadius: '10px',
+        overflow: 'hidden',
+        minWidth: '520px',
+      }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
+          background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)',
+          padding: '10px 20px',
+        }}>
+          {['Name', 'Qty', 'Avg Price', 'Current', 'P&L', ''].map(h => (
+            <div key={h} style={headerCell}>{h}</div>
+          ))}
+        </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} style={{
+            display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
+            padding: '14px 20px',
+            borderBottom: i < 4 ? '0.5px solid var(--color-border-subtle)' : 'none',
+            alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 7, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+              <div>
+                <div style={{ height: 13, width: 120, borderRadius: 4, background: 'var(--color-bg)', marginBottom: 5, animation: 'pulse 1.4s ease infinite' }} />
+                <div style={{ height: 11, width: 70, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+              </div>
+            </div>
+            {Array.from({ length: 4 }).map((_, j) => (
+              <div key={j} style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            ))}
+            <div />
+          </div>
+        ))}
+      </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+    </div>
+  )
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyStocks({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '60px 20px', gap: '12px',
+    }}>
+      <TrendingUp size={36} color="var(--color-text-muted)" strokeWidth={1.5} />
+      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No stocks yet</div>
+      <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+        Add your first stock or import from Zerodha
+      </div>
+      <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+        <button onClick={onImport} style={ghostBtnStyle}>Import</button>
+        <button onClick={onAdd} style={primaryBtnStyle}>Add stock</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Stocks table ─────────────────────────────────────────────────────────────
+
+function StocksTable({
+  stocks,
+  onRowClick,
+  onEditClick,
+}: {
+  stocks: StockItem[]
+  onRowClick: (s: StockItem) => void
+  onEditClick: (s: StockItem) => void
+}) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <div style={{
@@ -93,11 +140,8 @@ function StocksTable() {
       }}>
         {/* Header */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: gridCols,
-          gap: '8px',
-          background: 'var(--color-bg)',
-          borderBottom: '0.5px solid var(--color-border)',
+          display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
+          background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)',
           padding: '10px 20px',
         }}>
           <div style={headerCell}>Name</div>
@@ -105,49 +149,42 @@ function StocksTable() {
           <div style={{ ...headerCell, textAlign: 'right' }}>Avg Price</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>Current</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>P&amp;L</div>
+          <div />
         </div>
 
-        {/* Rows */}
-        {stocksData.map((stock, i) => {
-          const invested = stock.qty * stock.avgPrice
-          const current  = stock.qty * stock.currentPrice
-          const gain     = current - invested
-          const gainPct  = (gain / invested) * 100
-          const isLast   = i === stocksData.length - 1
-          const gainColor = gain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+        {stocks.map((stock, i) => {
+          const isLast      = i === stocks.length - 1
+          const gainColor   = stock.gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+          const isHovered   = hoveredId === stock.id
+          const pnlSign     = stock.gainLoss >= 0 ? '+' : '−'
 
           return (
             <div
-              key={stock.ticker}
+              key={stock.id}
+              onMouseEnter={() => setHoveredId(stock.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              onClick={() => onRowClick(stock)}
               style={{
-                display: 'grid',
-                gridTemplateColumns: gridCols,
-                gap: '8px',
+                display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
                 padding: '12px 20px',
                 borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
                 alignItems: 'center',
+                cursor: 'pointer',
+                background: isHovered ? 'var(--color-surface-raised)' : 'transparent',
+                transition: 'background 120ms ease',
               }}
             >
               {/* Name */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
-                  width: '38px',
-                  height: '38px',
-                  minWidth: '38px',
-                  maxWidth: '38px',
-                  flexShrink: 0,
-                  borderRadius: '7px',
+                  width: '38px', height: '38px', minWidth: '38px', maxWidth: '38px',
+                  flexShrink: 0, borderRadius: '7px',
                   background: 'var(--color-surface-raised)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '8px',
-                  fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '8px', fontWeight: 700,
                   color: 'var(--color-text-secondary)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  padding: '0 4px',
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', padding: '0 4px',
                 }}>
                   {stock.ticker}
                 </div>
@@ -163,27 +200,46 @@ function StocksTable() {
 
               {/* Qty */}
               <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {stock.qty}
+                {stock.quantity}
               </div>
 
               {/* Avg Price */}
               <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {fmtPrice(stock.avgPrice)}
+                {formatINR(stock.avgPrice)}
               </div>
 
               {/* Current */}
               <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {fmtPrice(stock.currentPrice)}
+                {formatINR(stock.currentPrice)}
               </div>
 
               {/* P&L */}
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '13px', fontWeight: 500, color: gainColor, fontVariantNumeric: 'tabular-nums' }}>
-                  {fmtPnlAmount(gain)}
+                  {pnlSign}₹{Math.abs(stock.gainLoss).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div style={{ fontSize: '10.5px', color: gainColor, marginTop: '1px' }}>
-                  {fmtPctSigned(gainPct)}
+                  {formatPctSigned(stock.gainLossPct)}
                 </div>
+              </div>
+
+              {/* Edit icon */}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button
+                  onClick={e => { e.stopPropagation(); onEditClick(stock) }}
+                  style={{
+                    width: '26px', height: '26px', borderRadius: '5px',
+                    border: '0.5px solid var(--color-border)',
+                    background: 'var(--color-bg)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    opacity: isHovered ? 1 : 0,
+                    transition: 'opacity 120ms ease',
+                  }}
+                >
+                  <Pencil size={12} />
+                </button>
               </div>
             </div>
           )
@@ -197,15 +253,103 @@ function StocksTable() {
 
 export default function AssetsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('stocks')
-  const info = tabInfo[activeTab]
-  const gainColor = info.gain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+
+  // Stocks data
+  const [stocks, setStocks] = useState<StockItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
+
+  // Price refresh
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshStatus, setRefreshStatus] = useState('')
+  const refreshStatusTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // Dialogs
+  const [showAdd, setShowAdd] = useState(false)
+  const [editStock, setEditStock] = useState<StockItem | null>(null)
+  const [txStock, setTxStock] = useState<StockItem | null>(null)
+  const [showImport, setShowImport] = useState(false)
+
+  const fetchStocks = useCallback(async () => {
+    setLoading(true)
+    setFetchError('')
+    try {
+      const res = await fetch('/api/stocks')
+      const data = await res.json() as { stocks?: StockItem[]; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch')
+      setStocks(data.stocks ?? [])
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load stocks')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchStocks() }, [fetchStocks])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    setRefreshStatus('')
+    try {
+      const res = await fetch('/api/stocks/price', { method: 'POST' })
+      const data = await res.json() as { updated?: number; failed?: number; skipped?: number }
+      setRefreshStatus(`Updated ${data.updated ?? 0} · Failed ${data.failed ?? 0} · Skipped ${data.skipped ?? 0}`)
+      clearTimeout(refreshStatusTimer.current)
+      refreshStatusTimer.current = setTimeout(() => setRefreshStatus(''), 4000)
+      await fetchStocks()
+    } catch {
+      setRefreshStatus('Price refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Derived rail stats
+  const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
+  const stocksCurrent    = stocks.reduce((s, x) => s + x.currentValue, 0)
+  const stocksGain       = stocksCurrent - stocksInvested
+  const stocksGainPct    = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
+  const stocksGainColor  = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+
+  const activeOther = activeTab !== 'stocks' ? otherAssets.find(a => a.value === activeTab) : null
 
   return (
     <div style={{ display: 'flex', gap: '16px' }}>
 
-      {/* ── Left rail ─────────────────────────────────────────────────────── */}
+      {/* ── Left rail ───────────────────────────────────────────────────────── */}
       <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {assetClasses.map(ac => {
+
+        {/* Stocks card */}
+        <div
+          onClick={() => setActiveTab('stocks')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '0.5px solid var(--color-border)',
+            borderRight: activeTab === 'stocks' ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            transition: 'all 160ms ease',
+          }}
+        >
+          <div style={{
+            fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+            color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+          }}>Stocks</div>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+            {stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}
+          </div>
+          <div style={{
+            fontSize: '15px', fontWeight: 600,
+            color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+            marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+          }}>
+            {formatShort(stocksInvested)}
+          </div>
+        </div>
+
+        {/* Other asset class cards */}
+        {otherAssets.map(ac => {
           const active = activeTab === ac.value
           return (
             <div
@@ -222,115 +366,178 @@ export default function AssetsPage() {
               }}
             >
               <div style={{
-                fontSize: '10px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.6px',
-                fontWeight: 600,
+                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              }}>
-                {ac.label}
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {ac.countLabel}
-              </div>
+              }}>{ac.label}</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
               <div style={{
-                fontSize: '15px',
-                fontWeight: 600,
+                fontSize: '15px', fontWeight: 600,
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                marginTop: '6px',
-                fontVariantNumeric: 'tabular-nums',
+                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
               }}>
-                {fmtShort(ac.invested)}
+                {formatShort(ac.invested)}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* ── Right content ─────────────────────────────────────────────────── */}
+      {/* ── Right content ───────────────────────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0 }}>
 
-        {/* Section header */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <div>
-            <div style={{
-              fontSize: '11px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              color: 'var(--color-text-muted)',
-              marginBottom: '4px',
-            }}>
-              {info.label}
-            </div>
-            <div style={{
-              fontSize: '28px',
-              fontWeight: 600,
-              color: 'var(--color-text-primary)',
-              letterSpacing: '-0.3px',
-              lineHeight: 1.1,
-            }}>
-              {fmtShort(info.currentValue)}
-            </div>
-            <div style={{ fontSize: '13px', marginTop: '4px' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>Invested </span>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{fmtShort(info.invested)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-              <span style={{ color: gainColor }}>{fmtShortSigned(info.gain)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-              <span style={{ color: gainColor }}>{fmtPctSigned(info.gainPct)}</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button style={{
-              padding: '7px 14px',
-              borderRadius: '6px',
-              border: '0.5px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-text-secondary)',
-              fontSize: '12.5px',
-              fontFamily: "'DM Sans', sans-serif",
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              cursor: 'pointer',
-            }}>
-              <Upload size={14} /> Import
-            </button>
-            <button style={{
-              padding: '7px 14px',
-              borderRadius: '6px',
-              border: 'none',
-              background: 'var(--color-text-primary)',
-              color: 'var(--color-surface)',
-              fontSize: '12.5px',
-              fontFamily: "'DM Sans', sans-serif",
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              cursor: 'pointer',
-            }}>
-              <Plus size={14} /> {info.addLabel}
-            </button>
-          </div>
-        </div>
-
-        {/* Tab content */}
         {activeTab === 'stocks' ? (
-          <StocksTable />
+          <>
+            {/* Section header */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                  Stocks
+                </div>
+                <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+                  {formatShort(stocksCurrent)}
+                </div>
+                {!loading && stocks.length > 0 && (
+                  <div style={{ fontSize: '13px', marginTop: '4px' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Invested </span>
+                    <span style={{ color: 'var(--color-text-secondary)' }}>{formatShort(stocksInvested)}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                    <span style={{ color: stocksGainColor }}>{formatShortSigned(stocksGain)}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                    <span style={{ color: stocksGainColor }}>{formatPctSigned(stocksGainPct)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* Refresh prices */}
+                  <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    style={{ ...ghostBtnStyle, gap: '5px', opacity: refreshing ? 0.7 : 1 }}
+                  >
+                    <RefreshCw
+                      size={13}
+                      style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }}
+                    />
+                    {refreshing ? 'Updating…' : 'Refresh prices'}
+                  </button>
+
+                  {/* Import */}
+                  <button onClick={() => setShowImport(true)} style={ghostBtnStyle}>
+                    <Upload size={13} /> Import
+                  </button>
+
+                  {/* Add stock */}
+                  <button onClick={() => setShowAdd(true)} style={primaryBtnStyle}>
+                    <Plus size={13} /> Add stock
+                  </button>
+                </div>
+
+                {/* Inline refresh status */}
+                {refreshStatus && (
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-gain)' }}>{refreshStatus}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Table area */}
+            {loading ? (
+              <SkeletonTable />
+            ) : fetchError ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', fontSize: '13px', color: 'var(--color-loss)' }}>
+                {fetchError}
+                <button onClick={fetchStocks} style={ghostBtnStyle}>Retry</button>
+              </div>
+            ) : stocks.length === 0 ? (
+              <EmptyStocks onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} />
+            ) : (
+              <StocksTable
+                stocks={stocks}
+                onRowClick={s => setTxStock(s)}
+                onEditClick={s => setEditStock(s)}
+              />
+            )}
+          </>
         ) : (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '200px',
-            color: 'var(--color-text-muted)',
-            fontSize: '14px',
-          }}>
-            {info.label} — coming soon
-          </div>
+          <>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                  {activeOther?.label}
+                </div>
+                <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+                  {formatShort(activeOther?.invested ?? 0)}
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              height: '200px', color: 'var(--color-text-muted)', fontSize: '14px',
+            }}>
+              {activeOther?.label} — coming soon
+            </div>
+          </>
         )}
       </div>
+
+      {/* ── Dialogs ─────────────────────────────────────────────────────────── */}
+
+      {showAdd && (
+        <AddEditStockDialog
+          mode="add"
+          onClose={() => setShowAdd(false)}
+          onSuccess={fetchStocks}
+        />
+      )}
+
+      {editStock && (
+        <AddEditStockDialog
+          mode="edit"
+          stock={editStock}
+          onClose={() => setEditStock(null)}
+          onSuccess={() => { fetchStocks(); setEditStock(null) }}
+        />
+      )}
+
+      {txStock && (
+        <TransactionDialog
+          stock={txStock}
+          onClose={() => setTxStock(null)}
+          onEdit={() => { setEditStock(txStock); setTxStock(null) }}
+          onDelete={fetchStocks}
+          onRefresh={fetchStocks}
+        />
+      )}
+
+      {showImport && (
+        <ImportDialog
+          onClose={() => setShowImport(false)}
+          onSuccess={fetchStocks}
+        />
+      )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
+}
+
+// ─── Shared button styles ─────────────────────────────────────────────────────
+
+const ghostBtnStyle: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: '6px',
+  border: '0.5px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-secondary)',
+  fontSize: '12.5px', fontFamily: 'inherit',
+  display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer',
+}
+
+const primaryBtnStyle: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: '6px',
+  border: 'none',
+  background: 'var(--color-text-primary)',
+  color: 'var(--color-surface)',
+  fontSize: '12.5px', fontFamily: 'inherit',
+  display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer',
 }
