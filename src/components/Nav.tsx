@@ -1,19 +1,31 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Moon, Sun } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Moon, Sun, Settings } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 
 const navLinks = [
   { href: '/', label: 'Dashboard' },
   { href: '/assets', label: 'Assets' },
-  { href: '/upload', label: 'Upload' },
-  { href: '/settings', label: 'Settings' },
 ]
+
+const iconButtonStyle: React.CSSProperties = {
+  width: '32px',
+  height: '32px',
+  borderRadius: '6px',
+  border: '0.5px solid var(--nav-indicator)',
+  background: 'var(--nav-bg)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--nav-indicator)',
+  cursor: 'pointer',
+}
 
 export default function Nav() {
   const pathname = usePathname()
+  const router = useRouter()
   const { theme, toggleTheme } = useTheme()
 
   function isActive(href: string) {
@@ -90,24 +102,15 @@ export default function Nav() {
           })}
         </div>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '6px',
-            border: '0.5px solid var(--nav-indicator)',
-            background: 'var(--color-surface)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--nav-indicator)',
-            cursor: 'pointer',
-          }}
-        >
-          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
+        {/* Right — icon buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => router.push('/settings')} style={iconButtonStyle}>
+            <Settings size={16} />
+          </button>
+          <button onClick={toggleTheme} style={iconButtonStyle}>
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+        </div>
       </div>
     </nav>
   )
