@@ -81,22 +81,35 @@ export async function POST(request: Request) {
 
     console.log('[POST /api/mf] body:', JSON.stringify(body))
 
-    const { name, isin, folioNumber, platform, units, avgNav, currentNav, investedValue, source, amfiCode, fundHouse, fundCategory } = body
+    const { name, isin, folioNumber, platform, source, amfiCode, fundHouse, fundCategory } = body
 
-    // Coerce to number defensively — form data can arrive as strings
-    const unitsNum         = typeof units         === 'number' ? units         : parseFloat(String(units ?? ''))
-    const avgNavNum        = typeof avgNav         === 'number' ? avgNav        : parseFloat(String(avgNav ?? ''))
-    const investedValueNum = typeof investedValue  === 'number' ? investedValue : parseFloat(String(investedValue ?? ''))
-    const currentNavNum    = typeof currentNav     === 'number' ? currentNav    : parseFloat(String(currentNav ?? ''))
+    const units = parseFloat(String(body.units))
+    const avgNav = parseFloat(String(body.avgNav))
+    const investedValue = parseFloat(String(body.investedValue))
+    const currentNav = body.currentNav
+      ? parseFloat(String(body.currentNav))
+      : avgNav
 
     if (!name || typeof name !== 'string' || !name.trim())
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    if (!Number.isFinite(unitsNum) || unitsNum <= 0)
-      return NextResponse.json({ error: 'units must be a positive number' }, { status: 400 })
-    if (!Number.isFinite(avgNavNum) || avgNavNum <= 0)
-      return NextResponse.json({ error: 'avgNav must be a positive number' }, { status: 400 })
-    if (!Number.isFinite(investedValueNum) || investedValueNum <= 0)
-      return NextResponse.json({ error: 'investedValue must be a positive number' }, { status: 400 })
+    if (!Number.isFinite(units) || units <= 0) {
+      return NextResponse.json(
+        { error: 'Units must be a positive number' },
+        { status: 400 }
+      )
+    }
+    if (!Number.isFinite(avgNav) || avgNav <= 0) {
+      return NextResponse.json(
+        { error: 'Avg NAV must be a positive number' },
+        { status: 400 }
+      )
+    }
+    if (!Number.isFinite(investedValue) || investedValue <= 0) {
+      return NextResponse.json(
+        { error: 'Invested value must be a positive number' },
+        { status: 400 }
+      )
+    }
 
     const normalizedIsin = typeof isin === 'string' && isin.trim()
       ? isin.trim().toUpperCase()
@@ -107,17 +120,34 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ error: 'Fund with this ISIN already exists' }, { status: 400 })
     }
 
-    const cn = Number.isFinite(currentNavNum) && currentNavNum > 0 ? currentNavNum : avgNavNum
-    const cv = unitsNum * cn
+    const cn = Number.isFinite(currentNav) && currentNav > 0 ? currentNav : avgNav
+    const cv = units * cn
 
     const normalizedAmfiCode = typeof amfiCode === 'string' && amfiCode.trim()
       ? amfiCode.trim()
       : null
 
-    let meta: { fundHouse?: string; fundCategory?: string } = {}
-    if (normalizedAmfiCode) {
-      const fetched = await fetchMFApiMeta(normalizedAmfiCode)
-      if (fetched) meta = fetched
+    let metadata: Record<string, unknown> = {}
+    if (amfiCode) {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 4000)
+        const metaRes = await fetch(
+          `https://api.mfapi.in/mf/${amfiCode}`,
+          { signal: controller.signal }
+        )
+        clearTimeout(timeout)
+        if (metaRes.ok) {
+          const metaData = await metaRes.json()
+          metadata = {
+            fundHouse: metaData.meta?.fund_house ?? null,
+            fundCategory: metaData.meta?.scheme_category ?? null,
+            expenseRatio: metaData.meta?.scheme_type ?? null,
+          }
+        }
+      } catch {
+        // mfapi.in unavailable — proceed without metadata
+      }
     }
 
     const fund = await prisma.mutualFund.create({
@@ -128,13 +158,13 @@ export async function POST(request: Request) {
         platform:     typeof platform    === 'string' ? platform.trim() || null    : null,
         amfiCode:     normalizedAmfiCode,
         fundHouse:    typeof fundHouse    === 'string' && fundHouse.trim()
-          ? fundHouse.trim() : (meta.fundHouse ?? null),
+          ? fundHouse.trim() : (metadata.fundHouse as string | null) ?? null,
         fundCategory: typeof fundCategory === 'string' && fundCategory.trim()
-          ? fundCategory.trim() : (meta.fundCategory ?? null),
-        units:         unitsNum,
-        avgNav:        avgNavNum,
+          ? fundCategory.trim() : (metadata.fundCategory as string | null) ?? null,
+        units,
+        avgNav,
         currentNav:    cn,
-        investedValue: investedValueNum,
+        investedValue,
         currentValue:  cv,
         source:        typeof source === 'string' && source.trim() ? source.trim() : 'MANUAL',
       },
