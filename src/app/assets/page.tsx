@@ -7,6 +7,7 @@ import AddEditStockDialog from '@/components/stocks/AddEditStockDialog'
 import TransactionDialog from '@/components/stocks/TransactionDialog'
 import ImportDialog from '@/components/stocks/ImportDialog'
 import MutualFundsTab from '@/components/mf/MutualFundsTab'
+import EPFTab from '@/components/epf/EPFTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,12 +32,11 @@ interface StockItem {
   priceStale: boolean
 }
 
-// ─── Static rail data for non-stocks tabs ─────────────────────────────────────
+// ─── Static rail data for non-stocks/mf/epf tabs ─────────────────────────────
 
-const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf'>; label: string; countLabel: string; invested: number }[] = [
-  { value: 'fd',  label: 'FDs & RDs',   countLabel: '2 accounts', invested: 200000 },
-  { value: 'epf', label: 'EPF',         countLabel: '1 account',  invested: 320000 },
-  { value: 'us',  label: 'US Stocks',   countLabel: '4 holdings', invested: 85000  },
+const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf' | 'epf'>; label: string; countLabel: string; invested: number }[] = [
+  { value: 'fd', label: 'FDs & RDs', countLabel: '2 accounts', invested: 200000 },
+  { value: 'us', label: 'US Stocks', countLabel: '4 holdings', invested: 85000  },
 ]
 
 // ─── Grid ─────────────────────────────────────────────────────────────────────
@@ -301,6 +301,10 @@ export default function AssetsPage() {
   // MF rail stats
   const [mfStats, setMfStats] = useState({ count: 0, totalInvested: 0, totalCurrentValue: 0 })
 
+  // EPF rail stats
+  const [epfCorpus, setEpfCorpus] = useState(0)
+  const [epfHasAccount, setEpfHasAccount] = useState(false)
+
   // Price refresh
   const [refreshing, setRefreshing] = useState(false)
   const [refreshStatus, setRefreshStatus] = useState('')
@@ -364,8 +368,8 @@ export default function AssetsPage() {
   const stocksGainPct    = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
   const stocksGainColor  = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
-  const activeOther = (activeTab !== 'stocks' && activeTab !== 'mf')
-    ? otherAssets.find(a => (a.value as string) === activeTab)
+  const activeOther = (activeTab !== 'stocks' && activeTab !== 'mf' && activeTab !== 'epf')
+    ? otherAssets.find(a => a.value === activeTab)
     : null
 
   // Empty state variant
@@ -436,6 +440,40 @@ export default function AssetsPage() {
                 marginTop: '6px', fontVariantNumeric: 'tabular-nums',
               }}>
                 {formatShort(mfDisplay)}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* EPF card */}
+        {(() => {
+          const active = activeTab === 'epf'
+          return (
+            <div
+              onClick={() => setActiveTab('epf')}
+              style={{
+                background: 'var(--color-surface)',
+                border: '0.5px solid var(--color-border)',
+                borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                cursor: 'pointer',
+                transition: 'all 160ms ease',
+              }}
+            >
+              <div style={{
+                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+              }}>EPF</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                {epfHasAccount ? '1 account' : 'Not configured'}
+              </div>
+              <div style={{
+                fontSize: '15px', fontWeight: 600,
+                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+              }}>
+                {epfHasAccount ? formatShort(epfCorpus) : '₹0'}
               </div>
             </div>
           )
@@ -558,6 +596,13 @@ export default function AssetsPage() {
               />
             )}
           </>
+        ) : activeTab === 'epf' ? (
+          <EPFTab
+            onCorpusChange={(corpus, hasAccount) => {
+              setEpfCorpus(corpus)
+              setEpfHasAccount(hasAccount)
+            }}
+          />
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
