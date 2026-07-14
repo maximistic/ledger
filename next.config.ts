@@ -1,7 +1,7 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@prisma/client', 'pg'],
+  serverExternalPackages: ['@prisma/client', 'pg', 'unpdf'],
 }
 
 export default nextConfig

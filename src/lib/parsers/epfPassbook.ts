@@ -1,9 +1,5 @@
-type PdfParseResult = { text: string; numpages: number }
-type PdfParseFn = (buffer: Buffer, options?: object) => Promise<PdfParseResult>
-
-// pdf-parse ships CJS only; require() avoids ESM interop errors with moduleResolution:"bundler"
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as PdfParseFn
+import 'server-only'
+import { extractText } from 'unpdf'
 
 export interface EPFPassbookResult {
   uan: string
@@ -45,8 +41,8 @@ function parseDMY(dateStr: string): Date {
 
 export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookResult> {
   try {
-    const data = await pdfParse(pdfBuffer)
-    const text = data.text
+    const uint8Array = new Uint8Array(pdfBuffer)
+    const { text } = await extractText(uint8Array, { mergePages: true })
 
     const uanMatch = text.match(/UAN\s*[\|:]\s*(\d+)/i)
     if (!uanMatch) throw new Error('Could not parse UAN from passbook')
