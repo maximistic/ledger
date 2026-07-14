@@ -4,6 +4,7 @@ import { extractText } from 'unpdf'
 export interface EPFPassbookResult {
   uan: string
   memberId: string
+  memberName: string
   employerName: string
   dateOfBirth: string
   transactions: Array<{
@@ -21,22 +22,14 @@ export interface EPFPassbookResult {
   closingPension: number
 }
 
-const SKIP_PARTICULARS = [
-  'OB Int. Updated',
-  'Total Contributions',
-  'Total Transfer',
-  'Total Withdrawals',
-  'Interest details',
-  'Closing Balance',
-]
-
 function parseNum(s: string): number {
   return parseFloat(s.replace(/,/g, '')) || 0
 }
 
+// Use local Date (not UTC) so "01-11-2025" → 1 Nov 2025 in local time
 function parseDMY(dateStr: string): Date {
   const [dd, mm, yyyy] = dateStr.split('-')
-  return new Date(`${yyyy}-${mm}-${dd}`)
+  return new Date(Number(yyyy), Number(mm) - 1, Number(dd))
 }
 
 export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookResult> {
@@ -44,51 +37,77 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
     const uint8Array = new Uint8Array(pdfBuffer)
     const { text } = await extractText(uint8Array, { mergePages: true })
 
-    const uanMatch = text.match(/UAN\s*[\|:]\s*(\d+)/i)
-    if (!uanMatch) throw new Error('Could not parse UAN from passbook')
-    const uan = uanMatch[1]
+    // Real EPFO passbook format has Hindi label | English label VALUE
+    // e.g. ";w , u | UAN 102247290774"
+    const uanMatch = text.match(/\|\s*UAN\s+(\d+)/)
+    const uan = uanMatch?.[1] ?? ''
+    if (!uan) throw new Error('Could not parse UAN from passbook')
 
-    const memberMatch = text.match(/Member ID\/Name\s+([A-Z0-9]+)\s*\/\s*([^\n]+)/i)
-    const memberId = memberMatch ? memberMatch[1].trim() : ''
+    // "Member ID/Name MHBAN00456650001767209 / SRIKAILAASH KUMAR S"
+    const memberMatch = text.match(/Member ID\/Name\s+([A-Z0-9]+)\s*\/\s*([^\n]+)/)
+    const memberId   = memberMatch?.[1]?.trim() ?? ''
+    const memberName = memberMatch?.[2]?.trim() ?? ''
 
-    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([^\n]+)/i)
-    const employerName = employerMatch ? employerMatch[1].trim() : ''
+    // "Establishment ID/Name MHBAN0045665000 / ACCENTURE SOLUTIONS PVT. LTD."
+    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([^\n]+)/)
+    const employerName  = employerMatch?.[1]?.trim() ?? ''
 
-    const dobMatch = text.match(/Date of Birth\s+(\d{2}-\d{2}-\d{4})/i)
-    const dateOfBirth = dobMatch ? dobMatch[1] : ''
+    // "Date of Birth 15-05-2004"
+    const dobMatch    = text.match(/Date of Birth\s+(\d{2}-\d{2}-\d{4})/)
+    const dateOfBirth = dobMatch?.[1] ?? ''
 
-    const txnPattern =
-      /([A-Za-z]{3}-\d{4})\s+(\d{2}-\d{2}-\d{4})\s+(CR|DR)\s+([^\n]+?)\s+([\d,]+)\s+(\d+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/g
+    // Transaction row format:
+    // "Oct-2025 01-11-2025 CR Cont. for Due-Month 112025 14,395 0 1,727 1,727 0"
+    // Groups: wageMonth, date, type, particulars, wages, epsWages(skip), empEPF, emplrEPF, pension
+    const txRegex =
+      /([A-Za-z]{3}-\d{4})\s+(\d{2}-\d{2}-\d{4})\s+(CR|DR)\s+(Cont\.[^\n]+?)\s+([\d,]+)\s+(\d+)\s+([\d,]+)\s+([\d,]+)\s+(\d+)/g
 
     const transactions: EPFPassbookResult['transactions'] = []
     let m: RegExpExecArray | null
 
-    while ((m = txnPattern.exec(text)) !== null) {
-      // groups: wageMonth, date, type, particulars, wages, epsWages(skip), employeeEPF, employerEPF, pension, (extra)
+    while ((m = txRegex.exec(text)) !== null) {
       const [, wageMonth, dateStr, type, particulars, wages, , employeeEPF, employerEPF, pension] = m
 
-      if (SKIP_PARTICULARS.some(p => particulars.includes(p))) continue
+      // Belt-and-suspenders skip for any summary rows that sneak through
+      if (
+        particulars.includes('Total')      ||
+        particulars.includes('Interest')   ||
+        particulars.includes('Closing')    ||
+        particulars.includes('Transfer')   ||
+        particulars.includes('Withdrawal')
+      ) continue
 
       transactions.push({
         wageMonth,
         transactionDate: parseDMY(dateStr),
         type,
         particulars: particulars.trim(),
-        wages: parseNum(wages),
+        wages:          parseNum(wages),
         employeeAmount: parseNum(employeeEPF),
         employerAmount: parseNum(employerEPF),
-        pensionAmount: parseNum(pension),
+        pensionAmount:  parseNum(pension),
       })
     }
 
     if (transactions.length === 0) throw new Error('No transactions found in passbook')
 
-    const closingMatch = text.match(/Closing Balance[^\d]+([\d,]+)\s+([\d,]+)\s+([\d,]+)/)
+    // "Closing Balance as on 31/03/2026 14,327 14,327 0"
+    const closingMatch   = text.match(/Closing Balance[^\d]+([\d,]+)\s+([\d,]+)\s+([\d,]+)/)
     const closingEmployee = closingMatch ? parseNum(closingMatch[1]) : 0
     const closingEmployer = closingMatch ? parseNum(closingMatch[2]) : 0
     const closingPension  = closingMatch ? parseNum(closingMatch[3]) : 0
 
-    return { uan, memberId, employerName, dateOfBirth, transactions, closingEmployee, closingEmployer, closingPension }
+    return {
+      uan,
+      memberId,
+      memberName,
+      employerName,
+      dateOfBirth,
+      transactions,
+      closingEmployee,
+      closingEmployer,
+      closingPension,
+    }
   } catch (err) {
     if (err instanceof Error) throw err
     throw new Error(`Failed to parse EPF passbook: ${String(err)}`)
