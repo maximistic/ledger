@@ -6,6 +6,7 @@ import { formatINR, formatShort, formatShortSigned, formatPctSigned } from '@/li
 import AddEditStockDialog from '@/components/stocks/AddEditStockDialog'
 import TransactionDialog from '@/components/stocks/TransactionDialog'
 import ImportDialog from '@/components/stocks/ImportDialog'
+import MutualFundsTab from '@/components/mf/MutualFundsTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,11 +33,10 @@ interface StockItem {
 
 // ─── Static rail data for non-stocks tabs ─────────────────────────────────────
 
-const otherAssets: { value: Exclude<Tab, 'stocks'>; label: string; countLabel: string; invested: number }[] = [
-  { value: 'mf',  label: 'Mutual Funds', countLabel: '3 schemes',   invested: 150000 },
-  { value: 'fd',  label: 'FDs & RDs',    countLabel: '2 accounts',  invested: 200000 },
-  { value: 'epf', label: 'EPF',          countLabel: '1 account',   invested: 320000 },
-  { value: 'us',  label: 'US Stocks',    countLabel: '4 holdings',  invested: 85000  },
+const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf'>; label: string; countLabel: string; invested: number }[] = [
+  { value: 'fd',  label: 'FDs & RDs',   countLabel: '2 accounts', invested: 200000 },
+  { value: 'epf', label: 'EPF',         countLabel: '1 account',  invested: 320000 },
+  { value: 'us',  label: 'US Stocks',   countLabel: '4 holdings', invested: 85000  },
 ]
 
 // ─── Grid ─────────────────────────────────────────────────────────────────────
@@ -298,6 +298,9 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
 
+  // MF rail stats
+  const [mfStats, setMfStats] = useState({ count: 0, totalInvested: 0, totalCurrentValue: 0 })
+
   // Price refresh
   const [refreshing, setRefreshing] = useState(false)
   const [refreshStatus, setRefreshStatus] = useState('')
@@ -361,7 +364,9 @@ export default function AssetsPage() {
   const stocksGainPct    = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
   const stocksGainColor  = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
-  const activeOther = activeTab !== 'stocks' ? otherAssets.find(a => a.value === activeTab) : null
+  const activeOther = (activeTab !== 'stocks' && activeTab !== 'mf')
+    ? otherAssets.find(a => (a.value as string) === activeTab)
+    : null
 
   // Empty state variant
   const allSold = stocks.length === 0 && totalIncludingZero > 0
@@ -401,6 +406,41 @@ export default function AssetsPage() {
           </div>
         </div>
 
+        {/* Mutual Funds card */}
+        {(() => {
+          const active = activeTab === 'mf'
+          const mfDisplay = mfStats.totalCurrentValue > 0 ? mfStats.totalCurrentValue : mfStats.totalInvested
+          return (
+            <div
+              onClick={() => setActiveTab('mf')}
+              style={{
+                background: 'var(--color-surface)',
+                border: '0.5px solid var(--color-border)',
+                borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                cursor: 'pointer',
+                transition: 'all 160ms ease',
+              }}
+            >
+              <div style={{
+                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+              }}>Mutual Funds</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                {mfStats.count} {mfStats.count === 1 ? 'scheme' : 'schemes'}
+              </div>
+              <div style={{
+                fontSize: '15px', fontWeight: 600,
+                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+              }}>
+                {formatShort(mfDisplay)}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Other asset class cards */}
         {otherAssets.map(ac => {
           const active = activeTab === ac.value
@@ -438,7 +478,11 @@ export default function AssetsPage() {
       {/* ── Right content ───────────────────────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0 }}>
 
-        {activeTab === 'stocks' ? (
+        {activeTab === 'mf' ? (
+          <MutualFundsTab
+            onStatsChange={t => setMfStats({ count: t.count, totalInvested: t.totalInvested, totalCurrentValue: t.totalCurrentValue })}
+          />
+        ) : activeTab === 'stocks' ? (
           <>
             {/* Section header */}
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
