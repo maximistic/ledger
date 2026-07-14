@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calculateMFMetrics } from '@/lib/mfUtils'
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 // Vercel cron calls GET; POST is available for manual triggers.
 // Add to vercel.json: { "crons": [{ "path": "/api/cron", "schedule": "0 9 * * *" }] }
 
@@ -75,10 +77,61 @@ async function processSips(): Promise<{ processed: number; errors: string[] }> {
   return { processed, errors }
 }
 
+async function processEPFContributions(): Promise<{ processed: boolean; skipped: boolean; error?: string }> {
+  try {
+    const epfAccount = await prisma.ePFAccount.findFirst({
+      where: { trackingStatus: 'ACTIVE' },
+    })
+
+    if (!epfAccount || !epfAccount.trackingStartDate) return { processed: false, skipped: true }
+
+    const today        = new Date()
+    const dayOfMonth   = epfAccount.dayOfMonth
+    const lastProcessed = epfAccount.lastProcessedDate
+
+    const isContributionDay = today.getDate() >= dayOfMonth
+    const alreadyProcessedThisMonth =
+      lastProcessed !== null &&
+      lastProcessed.getMonth()     === today.getMonth() &&
+      lastProcessed.getFullYear()  === today.getFullYear()
+
+    if (!isContributionDay || alreadyProcessedThisMonth) return { processed: false, skipped: true }
+
+    const wageMonth = `${MONTH_NAMES[today.getMonth()]}-${today.getFullYear()}`
+
+    await prisma.ePFTransaction.create({
+      data: {
+        accountId:       epfAccount.id,
+        wageMonth,
+        transactionDate: today,
+        type:            'CR',
+        particulars:     `Auto-tracked contribution for ${wageMonth}`,
+        employeeAmount:  epfAccount.employeeMonthly,
+        employerAmount:  epfAccount.employerMonthly,
+        pensionAmount:   0,
+        autoCreated:     true,
+      },
+    })
+
+    await prisma.ePFAccount.update({
+      where: { id: epfAccount.id },
+      data: {
+        employeeBalance:  { increment: epfAccount.employeeMonthly },
+        employerBalance:  { increment: epfAccount.employerMonthly },
+        lastProcessedDate: today,
+      },
+    })
+
+    return { processed: true, skipped: false }
+  } catch (err) {
+    return { processed: false, skipped: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 export async function GET() {
   try {
-    const result = await processSips()
-    return NextResponse.json({ ok: true, sips: result })
+    const [sips, epf] = await Promise.all([processSips(), processEPFContributions()])
+    return NextResponse.json({ ok: true, sips, epf })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -87,8 +140,8 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const result = await processSips()
-    return NextResponse.json({ ok: true, sips: result })
+    const [sips, epf] = await Promise.all([processSips(), processEPFContributions()])
+    return NextResponse.json({ ok: true, sips, epf })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
