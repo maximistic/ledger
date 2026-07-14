@@ -98,3 +98,43 @@ model SipConfig {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 }
+
+model EPFAccount {
+  id                  String            @id @default(cuid())
+  uan                 String?
+  memberId            String?
+  employerName        String?
+  dateOfBirth         DateTime?
+  employeeBalance     Float             @default(0)
+  employerBalance     Float             @default(0)
+  pensionBalance      Float             @default(0)
+  interestRate        Float             @default(8.25)
+  employeeMonthly     Float             @default(0)
+  employerMonthly     Float             @default(0)
+  dayOfMonth          Int               @default(1)
+  trackingStartDate   DateTime?
+  lastProcessedDate   DateTime?
+  trackingStatus      String            @default("ACTIVE")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  transactions        EPFTransaction[]
+}
+
+model EPFTransaction {
+  id              String      @id @default(cuid())
+  accountId       String
+  account         EPFAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  wageMonth       String
+  transactionDate DateTime
+  type            String      // CR | DR | INTEREST | OPENING_BALANCE
+  particulars     String?
+  wages           Float?
+  employeeAmount  Float       @default(0)
+  employerAmount  Float       @default(0)
+  pensionAmount   Float       @default(0)
+  autoCreated     Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+
+  @@index([accountId])
+  @@index([transactionDate])
+}
