@@ -131,3 +131,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
+
+export async function DELETE() {
+  try {
+    const existing = await prisma.ePFAccount.findFirst()
+    if (!existing) return NextResponse.json({ error: 'No EPF account found' }, { status: 404 })
+    // Transactions cascade via onDelete: Cascade on the relation
+    await prisma.ePFAccount.delete({ where: { id: existing.id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[DELETE /api/epf]', error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+  }
+}

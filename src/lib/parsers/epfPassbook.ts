@@ -47,11 +47,11 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
     // "Member ID/Name MHBAN00456650001767209 / SRIKAILAASH KUMAR S"
     const memberMatch = text.match(/Member ID\/Name\s+([A-Z0-9]+)\s*\/\s*([^\n]+)/)
     const memberId   = memberMatch?.[1]?.trim() ?? ''
-    const memberName = memberMatch?.[2]?.trim() ?? ''
+    const memberName = (memberMatch?.[2] ?? '').trim().split(/\s{2,}/)[0].slice(0, 60)
 
     // "Establishment ID/Name MHBAN0045665000 / ACCENTURE SOLUTIONS PVT. LTD."
-    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([^\n]+)/)
-    const employerName  = employerMatch?.[1]?.trim() ?? ''
+    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([A-Z][^\n|]{3,60}?)(?:\s{2,}|\n|$)/)
+    const employerName  = (employerMatch?.[1] ?? '').trim().slice(0, 80)
 
     // "Date of Birth 15-05-2004"
     const dobMatch    = text.match(/Date of Birth\s+(\d{2}-\d{2}-\d{4})/)
@@ -97,10 +97,15 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
     if (transactions.length === 0) throw new Error('No transactions found in passbook')
 
     // "Closing Balance as on 31/03/2026 14,327 14,327 0"
-    const closingMatch   = text.match(/Closing Balance[^\d]+([\d,]+)\s+([\d,]+)\s+([\d,]+)/)
+    const closingMatch    = text.match(/Closing Balance as on \d{2}\/\d{2}\/\d{4}\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/)
     const closingEmployee = closingMatch ? parseNum(closingMatch[1]) : 0
     const closingEmployer = closingMatch ? parseNum(closingMatch[2]) : 0
     const closingPension  = closingMatch ? parseNum(closingMatch[3]) : 0
+    console.log('Parsed closing balances:', {
+      employee: closingEmployee,
+      employer: closingEmployer,
+      pension: closingPension,
+    })
 
     return {
       uan,

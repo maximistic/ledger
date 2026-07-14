@@ -87,6 +87,10 @@ export default function ConfigureEPFDialog({ account, onClose, onSuccess }: Prop
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  const [showDanger, setShowDanger] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -149,6 +153,25 @@ export default function ConfigureEPFDialog({ account, onClose, onSuccess }: Prop
       setSubmitError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/epf', { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json() as { error?: string }
+        setSubmitError(cleanError(data.error))
+        setDeleteConfirm(false)
+        return
+      }
+      onSuccess()
+    } catch {
+      setSubmitError('Something went wrong. Please try again.')
+      setDeleteConfirm(false)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -368,6 +391,81 @@ export default function ConfigureEPFDialog({ account, onClose, onSuccess }: Prop
               Or upload your UAN passbook to auto-fill these values
             </div>
           </div>
+
+          {/* Divider */}
+          <div style={{ borderTop: '0.5px solid var(--color-border)', marginTop: '20px', marginBottom: '16px' }} />
+
+          {/* ── Danger zone ─────────────────────────────────────────────── */}
+          <button
+            onClick={() => { setShowDanger(prev => !prev); setDeleteConfirm(false) }}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}
+          >
+            <span style={{ fontSize: '12px', color: '#DC2626' }}>
+              {showDanger ? '▾' : '▸'} Remove EPF account
+            </span>
+          </button>
+
+          {showDanger && (
+            <div style={{
+              marginTop: '10px',
+              border: '0.5px solid #FECDD3',
+              borderRadius: '8px',
+              padding: '14px',
+              background: '#FFF5F5',
+            }}>
+              <div style={{ fontSize: '12.5px', color: '#DC2626', lineHeight: 1.6, marginBottom: '12px' }}>
+                This will delete your EPF account and all transaction history. This cannot be undone.
+              </div>
+              {!deleteConfirm ? (
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  style={{
+                    background: '#FFF5F5',
+                    border: '0.5px solid #FECDD3',
+                    color: '#DC2626',
+                    borderRadius: '7px',
+                    padding: '6px 14px',
+                    fontSize: '12.5px',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Delete EPF account
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '12.5px', color: '#DC2626', fontWeight: 600 }}>Are you sure?</span>
+                  <button
+                    onClick={() => setDeleteConfirm(false)}
+                    style={{
+                      padding: '5px 12px', borderRadius: '6px',
+                      border: '0.5px solid var(--color-border)',
+                      background: 'transparent',
+                      color: 'var(--color-text-secondary)',
+                      fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    style={{
+                      padding: '5px 12px', borderRadius: '6px',
+                      border: 'none', background: '#DC2626',
+                      color: '#fff', fontSize: '12px', fontFamily: 'inherit',
+                      cursor: deleting ? 'not-allowed' : 'pointer',
+                      opacity: deleting ? 0.7 : 1,
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                    }}
+                  >
+                    {deleting && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+                    {deleting ? 'Deleting…' : 'Confirm'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

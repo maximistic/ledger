@@ -44,6 +44,8 @@ export default function UploadPassbookDialog({ onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<ImportResult | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const overlayRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -67,6 +69,26 @@ export default function UploadPassbookDialog({ onClose, onSuccess }: Props) {
     e.target.value = ''
   }
 
+  async function handleReset() {
+    setResetting(true)
+    try {
+      const res = await fetch('/api/epf', { method: 'DELETE' })
+      if (!res.ok && res.status !== 404) {
+        setError('Failed to clear EPF data. Please try again.')
+        setShowResetConfirm(false)
+        return
+      }
+      setFile(null)
+      setResult(null)
+      setError('')
+      setShowResetConfirm(false)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setResetting(false)
+    }
+  }
+
   async function handleUpload() {
     if (!file) return
     setLoading(true)
@@ -81,7 +103,7 @@ export default function UploadPassbookDialog({ onClose, onSuccess }: Props) {
         return
       }
       setResult(data)
-      onSuccess()
+      // onSuccess is called by the Done button so the result view is visible first
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -239,6 +261,50 @@ export default function UploadPassbookDialog({ onClose, onSuccess }: Props) {
                     : error}
                 </div>
               )}
+
+              {/* Reset link */}
+              <div style={{ marginTop: '14px' }}>
+                {!showResetConfirm ? (
+                  <button
+                    onClick={() => setShowResetConfirm(true)}
+                    style={{
+                      border: 'none', background: 'transparent', cursor: 'pointer',
+                      padding: 0, fontSize: '11.5px', color: '#DC2626',
+                      textDecoration: 'underline', fontFamily: 'inherit',
+                    }}
+                  >
+                    Want to start fresh? Clear all data first
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#DC2626' }}>Clear all EPF data?</span>
+                    <button
+                      onClick={() => setShowResetConfirm(false)}
+                      style={{
+                        border: '0.5px solid var(--color-border)', background: 'transparent',
+                        borderRadius: '5px', padding: '3px 10px', fontSize: '11.5px',
+                        color: 'var(--color-text-secondary)', fontFamily: 'inherit', cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleReset}
+                      disabled={resetting}
+                      style={{
+                        border: 'none', background: '#DC2626', color: '#fff',
+                        borderRadius: '5px', padding: '3px 10px', fontSize: '11.5px',
+                        fontFamily: 'inherit', cursor: resetting ? 'not-allowed' : 'pointer',
+                        opacity: resetting ? 0.7 : 1,
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                      }}
+                    >
+                      {resetting && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+                      {resetting ? 'Clearing…' : 'Clear data'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
