@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     : 'http://localhost:3000'
   const parserUrl = process.env.CASPARSER_URL ?? `${host}/api/parse-cas`
 
-  // Forward to Python CAS parser (Vercel serverless function at api/parse-cas.py)
+  // Forward to Python CAS parser
   let parserData: CasParserResponse
   try {
     const fwd = new FormData()
@@ -58,15 +58,29 @@ export async function POST(request: NextRequest) {
       body: fwd,
       signal: AbortSignal.timeout(30000),
     })
-    if (!res.ok) {
-      const text = await res.text().catch(() => `HTTP ${res.status}`)
-      return NextResponse.json({ error: `Parser error: ${text}` }, { status: 502 })
+
+    // Check Content-Type before parsing — a 404/HTML response means the
+    // Python function isn't deployed (common in Next.js + Vercel setups
+    // where Next.js owns all /api/* routing and root api/*.py files are ignored).
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/json')) {
+      const body = await res.text().catch(() => '')
+      console.error('[CAS import] Parser returned non-JSON response:', res.status, body.slice(0, 200))
+      return NextResponse.json({
+        error: 'CAS parser is not available. Set the CASPARSER_URL environment variable to point to a running casparser service.',
+      }, { status: 502 })
     }
+
+    if (!res.ok) {
+      const data = await res.json() as { error?: string }
+      return NextResponse.json({ error: data.error ?? `Parser returned HTTP ${res.status}` }, { status: 502 })
+    }
+
     parserData = await res.json() as CasParserResponse
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Fetch error'
     const hint = parserUrl.includes('localhost')
-      ? ' (use `vercel dev` locally to run the Python CAS parser)'
+      ? ' — run `vercel dev` locally (not `npm run dev`) to start the Python function'
       : ''
     return NextResponse.json(
       { error: `Could not reach CAS parser: ${msg}${hint}` },

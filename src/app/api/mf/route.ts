@@ -79,16 +79,24 @@ export async function POST(request: Request) {
       source?: unknown; amfiCode?: unknown; fundHouse?: unknown; fundCategory?: unknown
     }
 
+    console.log('[POST /api/mf] body:', JSON.stringify(body))
+
     const { name, isin, folioNumber, platform, units, avgNav, currentNav, investedValue, source, amfiCode, fundHouse, fundCategory } = body
+
+    // Coerce to number defensively — form data can arrive as strings
+    const unitsNum         = typeof units         === 'number' ? units         : parseFloat(String(units ?? ''))
+    const avgNavNum        = typeof avgNav         === 'number' ? avgNav        : parseFloat(String(avgNav ?? ''))
+    const investedValueNum = typeof investedValue  === 'number' ? investedValue : parseFloat(String(investedValue ?? ''))
+    const currentNavNum    = typeof currentNav     === 'number' ? currentNav    : parseFloat(String(currentNav ?? ''))
 
     if (!name || typeof name !== 'string' || !name.trim())
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    if (typeof units !== 'number' || units <= 0)
-      return NextResponse.json({ error: 'units must be > 0' }, { status: 400 })
-    if (typeof avgNav !== 'number' || avgNav <= 0)
-      return NextResponse.json({ error: 'avgNav must be > 0' }, { status: 400 })
-    if (typeof investedValue !== 'number' || investedValue <= 0)
-      return NextResponse.json({ error: 'investedValue must be > 0' }, { status: 400 })
+    if (!Number.isFinite(unitsNum) || unitsNum <= 0)
+      return NextResponse.json({ error: 'units must be a positive number' }, { status: 400 })
+    if (!Number.isFinite(avgNavNum) || avgNavNum <= 0)
+      return NextResponse.json({ error: 'avgNav must be a positive number' }, { status: 400 })
+    if (!Number.isFinite(investedValueNum) || investedValueNum <= 0)
+      return NextResponse.json({ error: 'investedValue must be a positive number' }, { status: 400 })
 
     const normalizedIsin = typeof isin === 'string' && isin.trim()
       ? isin.trim().toUpperCase()
@@ -99,8 +107,8 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ error: 'Fund with this ISIN already exists' }, { status: 400 })
     }
 
-    const cn = typeof currentNav === 'number' ? currentNav : (avgNav as number)
-    const cv = (units as number) * cn
+    const cn = Number.isFinite(currentNavNum) && currentNavNum > 0 ? currentNavNum : avgNavNum
+    const cv = unitsNum * cn
 
     const normalizedAmfiCode = typeof amfiCode === 'string' && amfiCode.trim()
       ? amfiCode.trim()
@@ -114,7 +122,7 @@ export async function POST(request: Request) {
 
     const fund = await prisma.mutualFund.create({
       data: {
-        name:         name.trim(),
+        name:         (name as string).trim(),
         isin:         normalizedIsin,
         folioNumber:  typeof folioNumber === 'string' ? folioNumber.trim() || null : null,
         platform:     typeof platform    === 'string' ? platform.trim() || null    : null,
@@ -123,10 +131,10 @@ export async function POST(request: Request) {
           ? fundHouse.trim() : (meta.fundHouse ?? null),
         fundCategory: typeof fundCategory === 'string' && fundCategory.trim()
           ? fundCategory.trim() : (meta.fundCategory ?? null),
-        units:         units as number,
-        avgNav:        avgNav as number,
+        units:         unitsNum,
+        avgNav:        avgNavNum,
         currentNav:    cn,
-        investedValue: investedValue as number,
+        investedValue: investedValueNum,
         currentValue:  cv,
         source:        typeof source === 'string' && source.trim() ? source.trim() : 'MANUAL',
       },
@@ -134,7 +142,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ fund }, { status: 201 })
   } catch (error) {
-    console.error('[POST /api/mf]', error)
+    console.error('[POST /api/mf] error:', error)
+    console.error('[POST /api/mf] details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
     return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
   }
 }
