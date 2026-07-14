@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Upload, Plus, TrendingUp, RefreshCw, Pencil, PackageOpen } from 'lucide-react'
+import { Upload, Plus, TrendingUp, RefreshCw, Pencil, PackageOpen, SlidersHorizontal, Check } from 'lucide-react'
 import { formatINR, formatShort, formatShortSigned, formatPctSigned } from '@/lib/utils'
 import AddEditStockDialog from '@/components/stocks/AddEditStockDialog'
 import TransactionDialog from '@/components/stocks/TransactionDialog'
@@ -38,6 +38,20 @@ const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf' | 'epf'>; label: string
   { value: 'fd', label: 'FDs & RDs', countLabel: '2 accounts', invested: 200000 },
   { value: 'us', label: 'US Stocks', countLabel: '4 holdings', invested: 85000  },
 ]
+
+// ─── Rail visibility ──────────────────────────────────────────────────────────
+
+const DEFAULT_VISIBILITY = { stocks: true, mf: true, epf: true, fd: true, us: true }
+
+const SECTION_ORDER: (keyof typeof DEFAULT_VISIBILITY)[] = ['stocks', 'mf', 'epf', 'fd', 'us']
+
+const SECTION_LABELS: Record<keyof typeof DEFAULT_VISIBILITY, string> = {
+  stocks: 'Stocks',
+  mf:     'Mutual Funds',
+  epf:    'EPF',
+  fd:     'FDs & RDs',
+  us:     'US Stocks',
+}
 
 // ─── Grid ─────────────────────────────────────────────────────────────────────
 
@@ -302,6 +316,26 @@ export default function AssetsPage() {
   const [mfSummary, setMFSummary] = useState({ count: 0, invested: 0, currentValue: 0 })
   const [epfSummary, setEPFSummary] = useState({ configured: false, corpus: 0 })
 
+  // Rail visibility (persisted to localStorage)
+  const [railVisibility, setRailVisibility] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_VISIBILITY
+    try {
+      const saved = localStorage.getItem('ledger-rail-visibility')
+      return saved ? { ...DEFAULT_VISIBILITY, ...JSON.parse(saved) as typeof DEFAULT_VISIBILITY } : DEFAULT_VISIBILITY
+    } catch {
+      return DEFAULT_VISIBILITY
+    }
+  })
+  const [editingRail, setEditingRail] = useState(false)
+
+  const toggleSection = (key: keyof typeof DEFAULT_VISIBILITY) => {
+    setRailVisibility(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      localStorage.setItem('ledger-rail-visibility', JSON.stringify(next))
+      return next
+    })
+  }
+
   // Price refresh
   const [refreshing, setRefreshing] = useState(false)
   const [refreshStatus, setRefreshStatus] = useState('')
@@ -387,6 +421,14 @@ export default function AssetsPage() {
 
   useEffect(() => { fetchSummaries() }, [fetchSummaries])
 
+  // When a section is hidden while its tab is active, jump to the first visible section
+  useEffect(() => {
+    if (!railVisibility[activeTab as keyof typeof DEFAULT_VISIBILITY]) {
+      const firstVisible = Object.entries(railVisibility).find(([, v]) => v)?.[0]
+      if (firstVisible) setActiveTab(firstVisible as Tab)
+    }
+  }, [railVisibility]) // intentionally omits activeTab — only runs when visibility changes
+
   async function handleRefresh() {
     setRefreshing(true)
     setRefreshStatus('')
@@ -424,136 +466,232 @@ export default function AssetsPage() {
       {/* ── Left rail ───────────────────────────────────────────────────────── */}
       <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
-        {/* Stocks card */}
-        <div
-          onClick={() => setActiveTab('stocks')}
-          style={{
-            background: 'var(--color-surface)',
-            border: '0.5px solid var(--color-border)',
-            borderRight: activeTab === 'stocks' ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-            borderRadius: '10px',
-            padding: '12px 14px',
-            cursor: 'pointer',
-            transition: 'all 160ms ease',
-          }}
-        >
-          <div style={{
-            fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-            color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-          }}>Stocks</div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-            {stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}
-          </div>
-          <div style={{
-            fontSize: '15px', fontWeight: 600,
-            color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-            marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-          }}>
-            {formatShort(stocksInvested)}
-          </div>
-        </div>
+        {editingRail ? (
+          /* ── Edit mode: section chips ─────────────────────────────────────── */
+          <>
+            <div style={{
+              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px',
+              fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px',
+            }}>Sections</div>
 
-        {/* Mutual Funds card */}
-        {(() => {
-          const active = activeTab === 'mf'
-          const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
-          return (
-            <div
-              onClick={() => setActiveTab('mf')}
+            {SECTION_ORDER.map(key => {
+              const selected = railVisibility[key]
+              return (
+                <div
+                  key={key}
+                  onClick={() => toggleSection(key)}
+                  style={{
+                    padding: '10px 14px', borderRadius: '10px',
+                    background: 'var(--color-surface-raised)',
+                    border: '0.5px solid var(--color-border)',
+                    borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    cursor: 'pointer', transition: 'all 140ms ease',
+                  }}
+                >
+                  <span style={{
+                    fontSize: '13px',
+                    color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    fontWeight: selected ? 500 : 400,
+                  }}>
+                    {SECTION_LABELS[key]}
+                  </span>
+                  {selected ? (
+                    <div style={{
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      background: 'var(--color-text-primary)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Check size={9} color="var(--color-surface)" strokeWidth={3} />
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      border: '0.5px solid var(--color-border-subtle)',
+                      background: 'var(--color-surface-raised)', flexShrink: 0,
+                    }} />
+                  )}
+                </div>
+              )
+            })}
+
+            <button
+              onClick={() => setEditingRail(false)}
               style={{
-                background: 'var(--color-surface)',
-                border: '0.5px solid var(--color-border)',
-                borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-                borderRadius: '10px',
-                padding: '12px 14px',
-                cursor: 'pointer',
-                transition: 'all 160ms ease',
+                width: '100%', background: 'var(--color-text-primary)',
+                color: 'var(--color-surface)', borderRadius: '10px',
+                padding: '10px 14px', fontSize: '12px', fontWeight: 500,
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              <div style={{
-                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              }}>Mutual Funds</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}
+              Done
+            </button>
+          </>
+        ) : (
+          /* ── Normal mode: visible cards ───────────────────────────────────── */
+          <>
+            {/* Stocks */}
+            {railVisibility.stocks && (
+              <div
+                onClick={() => setActiveTab('stocks')}
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '0.5px solid var(--color-border)',
+                  borderRight: activeTab === 'stocks' ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                  borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
+                }}
+              >
+                <div style={{
+                  fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                  color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                }}>Stocks</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  {stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}
+                </div>
+                <div style={{
+                  fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+                  color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                }}>
+                  {formatShort(stocksInvested)}
+                </div>
               </div>
-              <div style={{
-                fontSize: '15px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-              }}>
-                {formatShort(mfDisplay)}
-              </div>
-            </div>
-          )
-        })()}
+            )}
 
-        {/* EPF card */}
-        {(() => {
-          const active = activeTab === 'epf'
-          return (
-            <div
-              onClick={() => setActiveTab('epf')}
+            {/* Mutual Funds */}
+            {railVisibility.mf && (() => {
+              const active = activeTab === 'mf'
+              const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
+              return (
+                <div
+                  onClick={() => setActiveTab('mf')}
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '0.5px solid var(--color-border)',
+                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>Mutual Funds</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}
+                  </div>
+                  <div style={{
+                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>
+                    {formatShort(mfDisplay)}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* EPF */}
+            {railVisibility.epf && (() => {
+              const active = activeTab === 'epf'
+              return (
+                <div
+                  onClick={() => setActiveTab('epf')}
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '0.5px solid var(--color-border)',
+                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>EPF</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {epfSummary.configured ? '1 account' : 'Not configured'}
+                  </div>
+                  <div style={{
+                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>
+                    {epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* FDs & RDs */}
+            {railVisibility.fd && (() => {
+              const ac = otherAssets.find(a => a.value === 'fd')!
+              const active = activeTab === 'fd'
+              return (
+                <div
+                  onClick={() => setActiveTab('fd')}
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '0.5px solid var(--color-border)',
+                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>{ac.label}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
+                  <div style={{
+                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>
+                    {formatShort(ac.invested)}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* US Stocks */}
+            {railVisibility.us && (() => {
+              const ac = otherAssets.find(a => a.value === 'us')!
+              const active = activeTab === 'us'
+              return (
+                <div
+                  onClick={() => setActiveTab('us')}
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '0.5px solid var(--color-border)',
+                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>{ac.label}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
+                  <div style={{
+                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
+                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}>
+                    {formatShort(ac.invested)}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Edit sections */}
+            <button
+              onClick={() => setEditingRail(true)}
               style={{
-                background: 'var(--color-surface)',
-                border: '0.5px solid var(--color-border)',
-                borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-                borderRadius: '10px',
-                padding: '12px 14px',
-                cursor: 'pointer',
-                transition: 'all 160ms ease',
+                width: '100%', background: 'var(--color-surface-raised)',
+                border: '0.5px solid var(--color-border)', borderRadius: '10px',
+                padding: '10px 14px', color: 'var(--color-text-muted)',
+                fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px',
               }}
             >
-              <div style={{
-                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              }}>EPF</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {epfSummary.configured ? '1 account' : 'Not configured'}
-              </div>
-              <div style={{
-                fontSize: '15px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-              }}>
-                {epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* Other asset class cards */}
-        {otherAssets.map(ac => {
-          const active = activeTab === ac.value
-          return (
-            <div
-              key={ac.value}
-              onClick={() => setActiveTab(ac.value)}
-              style={{
-                background: 'var(--color-surface)',
-                border: '0.5px solid var(--color-border)',
-                borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-                borderRadius: '10px',
-                padding: '12px 14px',
-                cursor: 'pointer',
-                transition: 'all 160ms ease',
-              }}
-            >
-              <div style={{
-                fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-              }}>{ac.label}</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
-              <div style={{
-                fontSize: '15px', fontWeight: 600,
-                color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-              }}>
-                {formatShort(ac.invested)}
-              </div>
-            </div>
-          )
-        })}
+              <SlidersHorizontal size={13} />
+              Edit sections
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── Right content ───────────────────────────────────────────────────── */}
