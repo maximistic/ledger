@@ -127,6 +127,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
   const [showConfigure, setShowConfigure] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
   const [retireAge, setRetireAge] = useState(60)
+  const [projectionRate, setProjectionRate] = useState(8.25)
 
   const onCorpusChangeRef = useRef(onCorpusChange)
   useEffect(() => { onCorpusChangeRef.current = onCorpusChange }, [onCorpusChange])
@@ -229,9 +230,15 @@ export default function EPFTab({ onCorpusChange }: Props) {
   const projectedCorpus = calculateProjectedCorpus({
     currentCorpus: totalCorpus,
     monthlyContribution: monthlyContrib,
-    annualInterestRate: account.interestRate,
+    annualInterestRate: projectionRate,
     yearsToRetirement,
   })
+
+  // Breakdown for the result box
+  const monthsToRetirement    = yearsToRetirement * 12
+  const projBreakdownInvested = monthlyContrib * monthsToRetirement
+  const projBreakdownCurrent  = account.employeeBalance + account.employerBalance
+  const projBreakdownInterest = Math.max(0, projectedCorpus - projBreakdownInvested - projBreakdownCurrent)
 
   const displayTxns = transactions.slice().reverse()
 
@@ -452,10 +459,30 @@ export default function EPFTab({ onCorpusChange }: Props) {
             </span>
           </div>
 
-          {/* Interest rate */}
+          {/* Interest rate – editable for projection */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--color-border-subtle)' }}>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Interest rate</span>
-            <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>{account.interestRate}% p.a. (assumed)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <input
+                type="number"
+                value={projectionRate}
+                onChange={e => setProjectionRate(parseFloat(e.target.value))}
+                min={1}
+                max={15}
+                step={0.25}
+                style={{
+                  width: '52px', padding: '3px 6px', borderRadius: '5px',
+                  border: '0.5px solid var(--color-border)',
+                  background: 'var(--color-surface-raised)',
+                  fontSize: '13px', fontFamily: 'inherit',
+                  color: 'var(--color-text-primary)',
+                  textAlign: 'right', outline: 'none',
+                }}
+                onFocus={e => { e.target.style.borderColor = 'var(--color-text-primary)' }}
+                onBlur={e  => { e.target.style.borderColor = 'var(--color-border)' }}
+              />
+              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>% p.a.</span>
+            </div>
           </div>
 
           {/* Retire-at slider */}
@@ -492,8 +519,22 @@ export default function EPFTab({ onCorpusChange }: Props) {
             <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
               {formatINR(projectedCorpus)}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '3px', lineHeight: 1.5 }}>
-              Based on {formatINR(monthlyContrib)}/month · {account.interestRate}% rate · not accounting for salary hikes
+
+            <div style={{ borderTop: '0.5px solid var(--color-border-subtle)', margin: '10px 0 4px' }} />
+
+            {([
+              { label: 'Total invested',  value: formatINR(projBreakdownInvested), color: 'var(--color-text-primary)' },
+              { label: 'Current corpus',  value: formatINR(projBreakdownCurrent),  color: 'var(--color-text-primary)' },
+              { label: 'Interest earned', value: formatINR(projBreakdownInterest), color: 'var(--color-gain)' },
+            ] as const).map(row => (
+              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: '11.5px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>{row.label}</span>
+                <span style={{ color: row.color, fontVariantNumeric: 'tabular-nums' }}>{row.value}</span>
+              </div>
+            ))}
+
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', lineHeight: 1.5 }}>
+              Based on {formatINR(monthlyContrib)}/month · {projectionRate}% rate · not accounting for salary hikes
             </div>
           </div>
         </div>

@@ -50,8 +50,9 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
     const memberName = (memberMatch?.[2] ?? '').trim().split(/\s{2,}/)[0].slice(0, 60)
 
     // "Establishment ID/Name MHBAN0045665000 / ACCENTURE SOLUTIONS PVT. LTD."
-    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([A-Z][^\n|]{3,60}?)(?:\s{2,}|\n|$)/)
-    const employerName  = (employerMatch?.[1] ?? '').trim().slice(0, 80)
+    const employerMatch = text.match(/Establishment ID\/Name\s+[A-Z0-9]+\s*\/\s*([^\n]+)/)
+    console.log('Employer regex match:', employerMatch?.[1])
+    const employerName  = employerMatch?.[1]?.trim().slice(0, 80) ?? ''
 
     // "Date of Birth 15-05-2004"
     const dobMatch    = text.match(/Date of Birth\s+(\d{2}-\d{2}-\d{4})/)

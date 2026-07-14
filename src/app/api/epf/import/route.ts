@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
         ? (pdfFY > existing.latestFinancialYear ? pdfFY : existing.latestFinancialYear)
         : (pdfFY ?? existing?.latestFinancialYear ?? null)
 
+    // Earliest transaction date → auto-fill trackingStartDate on first import
+    const sortedByDate = [...parsed.transactions].sort(
+      (a, b) => a.transactionDate.getTime() - b.transactionDate.getTime()
+    )
+    const firstTxDate = sortedByDate[0]?.transactionDate ?? null
+
     // Fields always written regardless of FY
     const alwaysUpdate = {
       uan:                 parsed.uan          || undefined,
@@ -61,6 +67,8 @@ export async function POST(request: NextRequest) {
       employerName:        parsed.employerName || undefined,
       dateOfBirth:         dateOfBirth         || undefined,
       latestFinancialYear: newLatestFY         || undefined,
+      // Preserve existing start date; auto-fill from first transaction if not yet set
+      trackingStartDate:   (existing?.trackingStartDate ?? firstTxDate) ?? undefined,
     }
 
     // Balance fields — only written when this PDF is the latest (or first)
