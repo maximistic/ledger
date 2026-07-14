@@ -9,6 +9,11 @@ function parseDMY(dateStr: string): Date {
   return new Date(`${yyyy}-${mm}-${dd}`)
 }
 
+// "2025-2026" >= "2024-2025" — lexicographic comparison works for "YYYY-YYYY" strings
+function fyIsNewerOrSame(incoming: string, stored: string): boolean {
+  return incoming >= stored
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -31,23 +36,46 @@ export async function POST(request: NextRequest) {
     const detectedEmployeeMonthly = crTxns.length > 0 ? crTxns[0].employeeAmount : 0
     const detectedEmployerMonthly = crTxns.length > 0 ? crTxns[0].employerAmount : 0
 
-    const baseData = {
-      uan:              parsed.uan          || undefined,
-      memberId:         parsed.memberId     || undefined,
-      employerName:     parsed.employerName || undefined,
-      dateOfBirth:      dateOfBirth         || undefined,
-      employeeBalance:  parsed.closingEmployee,
-      employerBalance:  parsed.closingEmployer,
-      pensionBalance:   parsed.closingPension,
-    }
+    const pdfFY = parsed.financialYear  // e.g. "2025-2026" or null
 
     const existing = await prisma.ePFAccount.findFirst()
+
+    // Only overwrite balances when this PDF is as recent as (or newer than) what we have.
+    // Guards against: uploading FY24-25 after FY25-26 was already imported.
+    const shouldUpdateBalance =
+      !existing ||                                          // first import
+      !existing.latestFinancialYear ||                      // no FY stored yet
+      !pdfFY ||                                             // PDF has no FY label (be safe)
+      fyIsNewerOrSame(pdfFY, existing.latestFinancialYear) // incoming >= stored
+
+    // latestFinancialYear: keep whichever is newer between stored and incoming
+    const newLatestFY =
+      pdfFY && existing?.latestFinancialYear
+        ? (pdfFY > existing.latestFinancialYear ? pdfFY : existing.latestFinancialYear)
+        : (pdfFY ?? existing?.latestFinancialYear ?? null)
+
+    // Fields always written regardless of FY
+    const alwaysUpdate = {
+      uan:                 parsed.uan          || undefined,
+      memberId:            parsed.memberId     || undefined,
+      employerName:        parsed.employerName || undefined,
+      dateOfBirth:         dateOfBirth         || undefined,
+      latestFinancialYear: newLatestFY         || undefined,
+    }
+
+    // Balance fields — only written when this PDF is the latest (or first)
+    const balanceUpdate = shouldUpdateBalance ? {
+      employeeBalance: parsed.closingEmployee,
+      employerBalance: parsed.closingEmployer,
+      pensionBalance:  parsed.closingPension,
+    } : {}
 
     const account = existing
       ? await prisma.ePFAccount.update({
           where: { id: existing.id },
           data: {
-            ...baseData,
+            ...alwaysUpdate,
+            ...balanceUpdate,
             ...(existing.employeeMonthly === 0 && detectedEmployeeMonthly > 0
               ? { employeeMonthly: detectedEmployeeMonthly }
               : {}),
@@ -58,7 +86,8 @@ export async function POST(request: NextRequest) {
         })
       : await prisma.ePFAccount.create({
           data: {
-            ...baseData,
+            ...alwaysUpdate,
+            ...balanceUpdate,
             employeeMonthly: detectedEmployeeMonthly,
             employerMonthly: detectedEmployerMonthly,
           },
@@ -98,8 +127,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       account,
-      transactions: { created, skipped },
-      autoDetected: { employeeMonthly: detectedEmployeeMonthly, employerMonthly: detectedEmployerMonthly },
+      transactions:   { created, skipped },
+      autoDetected:   { employeeMonthly: detectedEmployeeMonthly, employerMonthly: detectedEmployerMonthly },
+      financialYear:  pdfFY,
+      balanceUpdated: shouldUpdateBalance,
     })
   } catch (error) {
     console.error('[POST /api/epf/import]', error)

@@ -7,6 +7,7 @@ export interface EPFPassbookResult {
   memberName: string
   employerName: string
   dateOfBirth: string
+  financialYear: string | null   // e.g. "2025-2026", null if not found in PDF
   transactions: Array<{
     wageMonth: string
     transactionDate: Date
@@ -56,6 +57,10 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
     const dobMatch    = text.match(/Date of Birth\s+(\d{2}-\d{2}-\d{4})/)
     const dateOfBirth = dobMatch?.[1] ?? ''
 
+    // "Financial Year - 2025-2026" (en-dash or hyphen)
+    const fyMatch      = text.match(/Financial Year\s*[-–]\s*(\d{4}-\d{4})/)
+    const financialYear = fyMatch?.[1] ?? null
+
     // Transaction row format:
     // "Oct-2025 01-11-2025 CR Cont. for Due-Month 112025 14,395 0 1,727 1,727 0"
     // Groups: wageMonth, date, type, particulars, wages, epsWages(skip), empEPF, emplrEPF, pension
@@ -103,6 +108,7 @@ export async function parseEPFPassbook(pdfBuffer: Buffer): Promise<EPFPassbookRe
       memberName,
       employerName,
       dateOfBirth,
+      financialYear,
       transactions,
       closingEmployee,
       closingEmployer,

@@ -115,6 +115,7 @@ model EPFAccount {
   trackingStartDate   DateTime?
   lastProcessedDate   DateTime?
   trackingStatus      String            @default("ACTIVE")
+  latestFinancialYear String?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
   transactions        EPFTransaction[]
