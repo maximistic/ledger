@@ -53,6 +53,8 @@ const SECTION_LABELS: Record<keyof typeof DEFAULT_VISIBILITY, string> = {
   us:     'US Stocks',
 }
 
+const COMING_SOON_SECTIONS = ['Gold', 'Real Estate', 'PPF']
+
 // ─── Grid ─────────────────────────────────────────────────────────────────────
 
 const gridCols = '2.2fr 0.6fr 1fr 1fr 1fr 32px'
@@ -328,6 +330,16 @@ export default function AssetsPage() {
   })
   const [editingRail, setEditingRail] = useState(false)
 
+  // Track dark mode by observing .dark class on <html>
+  const [isDark, setIsDark] = useState(false)
+  useEffect(() => {
+    const update = () => setIsDark(document.documentElement.classList.contains('dark'))
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
   const toggleSection = (key: keyof typeof DEFAULT_VISIBILITY) => {
     setRailVisibility(prev => {
       const next = { ...prev, [key]: !prev[key] }
@@ -457,6 +469,23 @@ export default function AssetsPage() {
     ? otherAssets.find(a => a.value === activeTab)
     : null
 
+  // Dark mode rail card color helpers (light mode uses CSS variables unchanged)
+  const rCardBg    = (active: boolean) => isDark ? (active ? '#2E2B27' : '#252220') : 'var(--color-surface)'
+  const rBorder    = () => isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
+  const rRightBdr  = (active: boolean) => active
+    ? `2px solid ${isDark ? '#F0EDE4' : 'var(--color-text-primary)'}`
+    : '2px solid transparent'
+  const rLabel     = (active: boolean) => active
+    ? (isDark ? '#F0EDE4' : 'var(--color-text-primary)')
+    : (isDark ? '#C8C4BC' : 'var(--color-text-muted)')
+  const rCount     = isDark ? '#6E6A62' : 'var(--color-text-muted)'
+  const rValue     = (active: boolean) => active
+    ? (isDark ? '#F0EDE4' : 'var(--color-text-primary)')
+    : (isDark ? '#C8C4BC' : 'var(--color-text-muted)')
+  const editBtnBg  = isDark ? '#252220' : 'var(--color-surface-raised)'
+  const editBtnTxt = isDark ? '#8A8680' : 'var(--color-text-muted)'
+  const editBtnBdr = isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
+
   // Empty state variant
   const allSold = stocks.length === 0 && totalIncludingZero > 0
 
@@ -515,6 +544,39 @@ export default function AssetsPage() {
               )
             })}
 
+            {/* Coming soon separator */}
+            <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '4px 0' }} />
+
+            <div style={{
+              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px',
+              fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px',
+            }}>Coming soon</div>
+
+            {COMING_SOON_SECTIONS.map(name => (
+              <div
+                key={name}
+                style={{
+                  padding: '10px 14px', borderRadius: '10px',
+                  background: 'var(--color-surface-raised)',
+                  border: '0.5px solid var(--color-border)',
+                  borderRight: '2px solid transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  opacity: 0.6, cursor: 'default',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 400 }}>
+                  {name}
+                </span>
+                <span style={{
+                  fontSize: '9px', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase',
+                  color: 'var(--color-text-muted)', background: 'var(--color-border)',
+                  padding: '2px 6px', borderRadius: '4px',
+                }}>
+                  Soon
+                </span>
+              </div>
+            ))}
+
             <button
               onClick={() => setEditingRail(false)}
               style={{
@@ -535,22 +597,22 @@ export default function AssetsPage() {
               <div
                 onClick={() => setActiveTab('stocks')}
                 style={{
-                  background: 'var(--color-surface)',
-                  border: '0.5px solid var(--color-border)',
-                  borderRight: activeTab === 'stocks' ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                  background: rCardBg(activeTab === 'stocks'),
+                  border: rBorder(),
+                  borderRight: rRightBdr(activeTab === 'stocks'),
                   borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
                 }}
               >
                 <div style={{
                   fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                  color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  color: rLabel(activeTab === 'stocks'),
                 }}>Stocks</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
                   {stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}
                 </div>
                 <div style={{
                   fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                  color: activeTab === 'stocks' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  color: rValue(activeTab === 'stocks'),
                 }}>
                   {formatShort(stocksInvested)}
                 </div>
@@ -565,22 +627,22 @@ export default function AssetsPage() {
                 <div
                   onClick={() => setActiveTab('mf')}
                   style={{
-                    background: 'var(--color-surface)',
-                    border: '0.5px solid var(--color-border)',
-                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    background: rCardBg(active),
+                    border: rBorder(),
+                    borderRight: rRightBdr(active),
                     borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
                   }}
                 >
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rLabel(active),
                   }}>Mutual Funds</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
                     {mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}
                   </div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rValue(active),
                   }}>
                     {formatShort(mfDisplay)}
                   </div>
@@ -595,22 +657,22 @@ export default function AssetsPage() {
                 <div
                   onClick={() => setActiveTab('epf')}
                   style={{
-                    background: 'var(--color-surface)',
-                    border: '0.5px solid var(--color-border)',
-                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    background: rCardBg(active),
+                    border: rBorder(),
+                    borderRight: rRightBdr(active),
                     borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
                   }}
                 >
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rLabel(active),
                   }}>EPF</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
                     {epfSummary.configured ? '1 account' : 'Not configured'}
                   </div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rValue(active),
                   }}>
                     {epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}
                   </div>
@@ -626,20 +688,20 @@ export default function AssetsPage() {
                 <div
                   onClick={() => setActiveTab('fd')}
                   style={{
-                    background: 'var(--color-surface)',
-                    border: '0.5px solid var(--color-border)',
-                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    background: rCardBg(active),
+                    border: rBorder(),
+                    borderRight: rRightBdr(active),
                     borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
                   }}
                 >
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rLabel(active),
                   }}>{ac.label}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{ac.countLabel}</div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rValue(active),
                   }}>
                     {formatShort(ac.invested)}
                   </div>
@@ -655,20 +717,20 @@ export default function AssetsPage() {
                 <div
                   onClick={() => setActiveTab('us')}
                   style={{
-                    background: 'var(--color-surface)',
-                    border: '0.5px solid var(--color-border)',
-                    borderRight: active ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                    background: rCardBg(active),
+                    border: rBorder(),
+                    borderRight: rRightBdr(active),
                     borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
                   }}
                 >
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rLabel(active),
                   }}>{ac.label}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{ac.countLabel}</div>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{ac.countLabel}</div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    color: rValue(active),
                   }}>
                     {formatShort(ac.invested)}
                   </div>
@@ -680,9 +742,9 @@ export default function AssetsPage() {
             <button
               onClick={() => setEditingRail(true)}
               style={{
-                width: '100%', background: 'var(--color-surface-raised)',
-                border: '0.5px solid var(--color-border)', borderRadius: '10px',
-                padding: '10px 14px', color: 'var(--color-text-muted)',
+                width: '100%', background: editBtnBg,
+                border: editBtnBdr, borderRadius: '10px',
+                padding: '10px 14px', color: editBtnTxt,
                 fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '6px',
               }}

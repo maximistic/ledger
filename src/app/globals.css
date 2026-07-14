@@ -178,10 +178,10 @@ body {
   --color-text-disabled:   #3A3733;   /* disabled */
 
   /* Semantic */
-  --color-gain:            #4ADE80;   /* brighter green for dark bg */
-  --color-gain-subtle:     rgba(74,222,128,0.08);
-  --color-loss:            #F87171;   /* softer red for dark bg */
-  --color-loss-subtle:     rgba(248,113,113,0.08);
+  --color-gain:            #34D399;
+  --color-gain-subtle:     rgba(52, 211, 153, 0.1);
+  --color-loss:            #FB7185;
+  --color-loss-subtle:     rgba(251, 113, 133, 0.1);
   --color-neutral:         #F59E0B;
   --color-neutral-subtle:  rgba(245,158,11,0.08);
 
