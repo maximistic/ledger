@@ -298,12 +298,9 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
 
-  // MF rail stats
-  const [mfStats, setMfStats] = useState({ count: 0, totalInvested: 0, totalCurrentValue: 0 })
-
-  // EPF rail stats
-  const [epfCorpus, setEpfCorpus] = useState(0)
-  const [epfHasAccount, setEpfHasAccount] = useState(false)
+  // Asset-level summary states (populated on mount so rail cards are correct before a tab is visited)
+  const [mfSummary, setMFSummary] = useState({ count: 0, invested: 0, currentValue: 0 })
+  const [epfSummary, setEPFSummary] = useState({ configured: false, corpus: 0 })
 
   // Price refresh
   const [refreshing, setRefreshing] = useState(false)
@@ -343,6 +340,52 @@ export default function AssetsPage() {
   }, [])
 
   useEffect(() => { fetchStocks() }, [fetchStocks])
+
+  // Pre-fetch MF + EPF summaries on mount so rail cards are populated before those tabs are visited.
+  // FD / US-stocks are included so their APIs are warm when those tabs are eventually built.
+  const fetchSummaries = useCallback(async () => {
+    try {
+      const [mfRes, epfRes] = await Promise.all([
+        fetch('/api/mf'),
+        fetch('/api/epf'),
+      ])
+      // fire-and-forget for future tabs; 404s are fine
+      Promise.all([
+        fetch('/api/fd').catch(() => null),
+        fetch('/api/us-stocks').catch(() => null),
+      ])
+
+      if (mfRes.ok) {
+        const data = await mfRes.json() as {
+          funds?: unknown[]
+          totals?: { totalInvested?: number; totalCurrentValue?: number }
+        }
+        setMFSummary({
+          count: data.funds?.length ?? 0,
+          invested: data.totals?.totalInvested ?? 0,
+          currentValue: data.totals?.totalCurrentValue ?? 0,
+        })
+      }
+
+      if (epfRes.ok) {
+        const data = await epfRes.json() as {
+          account?: { employeeBalance: number; employerBalance: number; pensionBalance?: number } | null
+        }
+        if (data.account) {
+          setEPFSummary({
+            configured: true,
+            corpus: data.account.employeeBalance + data.account.employerBalance + (data.account.pensionBalance ?? 0),
+          })
+        } else {
+          setEPFSummary({ configured: false, corpus: 0 })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch asset summaries:', err)
+    }
+  }, [])
+
+  useEffect(() => { fetchSummaries() }, [fetchSummaries])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -413,7 +456,7 @@ export default function AssetsPage() {
         {/* Mutual Funds card */}
         {(() => {
           const active = activeTab === 'mf'
-          const mfDisplay = mfStats.totalCurrentValue > 0 ? mfStats.totalCurrentValue : mfStats.totalInvested
+          const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
           return (
             <div
               onClick={() => setActiveTab('mf')}
@@ -432,7 +475,7 @@ export default function AssetsPage() {
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
               }}>Mutual Funds</div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {mfStats.count} {mfStats.count === 1 ? 'scheme' : 'schemes'}
+                {mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}
               </div>
               <div style={{
                 fontSize: '15px', fontWeight: 600,
@@ -466,14 +509,14 @@ export default function AssetsPage() {
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
               }}>EPF</div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {epfHasAccount ? '1 account' : 'Not configured'}
+                {epfSummary.configured ? '1 account' : 'Not configured'}
               </div>
               <div style={{
                 fontSize: '15px', fontWeight: 600,
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                 marginTop: '6px', fontVariantNumeric: 'tabular-nums',
               }}>
-                {epfHasAccount ? formatShort(epfCorpus) : '₹0'}
+                {epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}
               </div>
             </div>
           )
@@ -518,7 +561,7 @@ export default function AssetsPage() {
 
         {activeTab === 'mf' ? (
           <MutualFundsTab
-            onStatsChange={t => setMfStats({ count: t.count, totalInvested: t.totalInvested, totalCurrentValue: t.totalCurrentValue })}
+            onStatsChange={t => setMFSummary({ count: t.count, invested: t.totalInvested, currentValue: t.totalCurrentValue })}
           />
         ) : activeTab === 'stocks' ? (
           <>
@@ -599,8 +642,7 @@ export default function AssetsPage() {
         ) : activeTab === 'epf' ? (
           <EPFTab
             onCorpusChange={(corpus, hasAccount) => {
-              setEpfCorpus(corpus)
-              setEpfHasAccount(hasAccount)
+              setEPFSummary({ configured: hasAccount, corpus })
             }}
           />
         ) : (
