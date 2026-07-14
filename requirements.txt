@@ -1,1 +1,1 @@
-casparser
+casparser[all]

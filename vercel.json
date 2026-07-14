@@ -1,13 +1,13 @@
 {
   "functions": {
     "api/parse-cas.py": {
-      "runtime": "python3.9",
+      "runtime": "vercel-python@4.3.0",
       "maxDuration": 30
     }
   },
   "crons": [
     {
-      "path": "/api/cron",
+      "path": "/api/cron/process-recurring",
       "schedule": "0 9 * * *"
     }
   ]
