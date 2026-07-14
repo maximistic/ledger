@@ -43,3 +43,58 @@ model StockTransaction {
   @@index([stockId])
   @@index([date])
 }
+
+model MutualFund {
+  id               String                  @id @default(cuid())
+  name             String
+  isin             String?                 @unique
+  folioNumber      String?
+  amfiCode         String?
+  platform         String?
+  fundHouse        String?
+  fundCategory     String?
+  expenseRatio     Float?
+  exitLoad         String?
+  units            Float                   @default(0)
+  avgNav           Float                   @default(0)
+  currentNav       Float                   @default(0)
+  investedValue    Float                   @default(0)
+  currentValue     Float                   @default(0)
+  hasActiveSip     Boolean                 @default(false)
+  lastNavUpdatedAt DateTime?
+  source           String                  @default("MANUAL")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  transactions     MutualFundTransaction[]
+  sipConfig        SipConfig?
+}
+
+model MutualFundTransaction {
+  id          String     @id @default(cuid())
+  fundId      String
+  fund        MutualFund @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  date        DateTime
+  type        String     // SIP | LUMPSUM | REDEMPTION | SWITCH_IN | SWITCH_OUT | DIVIDEND
+  units       Float
+  nav         Float
+  amount      Float
+  description String?
+  autoCreated Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+
+  @@index([fundId])
+  @@index([date])
+}
+
+model SipConfig {
+  id                String     @id @default(cuid())
+  fundId            String     @unique
+  fund              MutualFund @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  amount            Float
+  dayOfMonth        Int        @default(1)
+  startDate         DateTime
+  lastProcessedDate DateTime?
+  status            String     @default("ACTIVE")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+}
