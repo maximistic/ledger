@@ -40,24 +40,36 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File))
     return NextResponse.json({ error: 'Missing file field' }, { status: 400 })
 
-  const parserUrl = process.env.CASPARSER_URL ?? 'http://localhost:8000/parse'
+  // Resolve parser URL: prefer explicit env var, then Vercel deployment URL, then localhost
+  const host = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000'
+  const parserUrl = process.env.CASPARSER_URL ?? `${host}/api/parse-cas`
 
-  // Forward to Python CAS parser
+  // Forward to Python CAS parser (Vercel serverless function at api/parse-cas.py)
   let parserData: CasParserResponse
   try {
     const fwd = new FormData()
     fwd.append('file', file)
     if (typeof password === 'string' && password) fwd.append('password', password)
 
-    const res = await fetch(parserUrl, { method: 'POST', body: fwd })
+    const res = await fetch(parserUrl, {
+      method: 'POST',
+      body: fwd,
+      signal: AbortSignal.timeout(30000),
+    })
     if (!res.ok) {
       const text = await res.text().catch(() => `HTTP ${res.status}`)
       return NextResponse.json({ error: `Parser error: ${text}` }, { status: 502 })
     }
     parserData = await res.json() as CasParserResponse
   } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Fetch error'
+    const hint = parserUrl.includes('localhost')
+      ? ' (use `vercel dev` locally to run the Python CAS parser)'
+      : ''
     return NextResponse.json(
-      { error: `Could not reach CAS parser at ${parserUrl}: ${err instanceof Error ? err.message : 'Fetch error'}` },
+      { error: `Could not reach CAS parser: ${msg}${hint}` },
       { status: 502 }
     )
   }

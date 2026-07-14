@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/parse-cas.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

@@ -287,28 +287,33 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
   const detailFundRef = useRef<MFItem | null>(null)
   useEffect(() => { detailFundRef.current = detailFund }, [detailFund])
 
+  // Stable ref for onStatsChange — prevents infinite re-render loop when parent
+  // passes an inline arrow function that gets recreated on every render.
+  const onStatsChangeRef = useRef(onStatsChange)
+  useEffect(() => { onStatsChangeRef.current = onStatsChange }, [onStatsChange])
+
   const fetchFunds = useCallback(async () => {
     setLoading(true); setFetchError('')
     try {
       const typeParam = filter === 'sip' ? '?type=SIP' : filter === 'lumpsum' ? '?type=LUMPSUM' : ''
       const res = await fetch(`/api/mf${typeParam}`)
       const data = await res.json() as { funds?: MFItem[]; totals?: Totals; error?: string }
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) throw new Error(data.error ?? 'Failed to load funds')
       const freshFunds = data.funds ?? []
       setFunds(freshFunds)
       const t = data.totals ?? { totalInvested: 0, totalCurrentValue: 0, totalGainLoss: 0, totalGainLossPct: 0, count: 0 }
       setTotals(t)
-      onStatsChange?.(t)
+      onStatsChangeRef.current?.(t)
       if (detailFundRef.current) {
         const fresh = freshFunds.find(f => f.id === detailFundRef.current!.id)
         if (fresh) setDetailFund(fresh)
       }
-    } catch {
-      setFetchError('Could not load funds. Please refresh.')
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Could not load funds. Please refresh.')
     } finally {
       setLoading(false)
     }
-  }, [filter, onStatsChange])
+  }, [filter]) // onStatsChange intentionally excluded — accessed via ref
 
   useEffect(() => { fetchFunds() }, [fetchFunds])
 

@@ -39,7 +39,9 @@ function scoreMatch(fundName: string, candidate: string): number {
 
 async function findAmfiCode(fundName: string): Promise<string | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName)}`)
+    const res = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(fundName)}`, {
+      signal: AbortSignal.timeout(5000),
+    })
     if (!res.ok) return null
     const results = await res.json() as MFSearchResult[]
     if (!Array.isArray(results) || results.length === 0) return null
@@ -58,7 +60,9 @@ async function findAmfiCode(fundName: string): Promise<string | null> {
 
 async function fetchNavForCode(amfiCode: string): Promise<number | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`)
+    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`, {
+      signal: AbortSignal.timeout(5000),
+    })
     if (!res.ok) return null
     const data = await res.json() as MFApiData
     if (data.status !== 'SUCCESS' || !data.data || data.data.length === 0) return null

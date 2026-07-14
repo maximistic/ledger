@@ -15,7 +15,9 @@ interface MFApiMeta {
 
 async function fetchMFApiMeta(amfiCode: string): Promise<{ fundHouse?: string; fundCategory?: string } | null> {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`)
+    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`, {
+      signal: AbortSignal.timeout(5000),
+    })
     if (!res.ok) return null
     const data = await res.json() as MFApiMeta
     if (data.status !== 'SUCCESS') return null
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
     const type = request.nextUrl.searchParams.get('type')
 
     const where =
-      type === 'SIP'     ? { hasActiveSip: true }
+      type === 'SIP'       ? { hasActiveSip: true }
       : type === 'LUMPSUM' ? { hasActiveSip: false }
       : undefined
 
@@ -64,6 +66,7 @@ export async function GET(request: NextRequest) {
       totals: { totalInvested, totalCurrentValue, totalGainLoss, totalGainLossPct, count: result.length },
     })
   } catch (error) {
+    console.error('[GET /api/mf]', error)
     return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
   }
 }
@@ -131,6 +134,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ fund }, { status: 201 })
   } catch (error) {
+    console.error('[POST /api/mf]', error)
     return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
   }
 }
