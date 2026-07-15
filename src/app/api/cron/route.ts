@@ -3,6 +3,29 @@ import { prisma } from '@/lib/prisma'
 import { calculateMFMetrics } from '@/lib/mfUtils'
 import { calculateFDCurrentValue, calculateRDCurrentValue } from '@/lib/fdCalculator'
 
+interface YahooChartResult {
+  chart: {
+    result: Array<{ meta: { regularMarketPrice: number } }> | null
+    error: unknown
+  }
+}
+
+async function fetchYahooPrice(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ledger-app/1.0)', Accept: 'application/json' } }
+    )
+    if (!res.ok) return null
+    const data = await res.json() as YahooChartResult
+    if (!data.chart.result || data.chart.result.length === 0) return null
+    const price = data.chart.result[0].meta.regularMarketPrice
+    return typeof price === 'number' && price > 0 && isFinite(price) ? price : null
+  } catch {
+    return null
+  }
+}
+
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 // Vercel cron calls GET; POST is available for manual triggers.
@@ -202,15 +225,58 @@ async function processFDs(): Promise<{ processed: number; errors: string[] }> {
   return { processed, errors }
 }
 
+async function processUSStocks(): Promise<{ updated: number; failed: number; skipped: number; exchangeRate: number | null }> {
+  let updated  = 0
+  let failed   = 0
+  let skipped  = 0
+  let currentExchangeRate: number | null = null
+
+  try {
+    const fxPrice = await fetchYahooPrice('USDINR=X')
+    if (fxPrice && fxPrice > 0) currentExchangeRate = fxPrice
+
+    const stocks = await prisma.uSStock.findMany({ orderBy: { ticker: 'asc' } })
+
+    for (let i = 0; i < stocks.length; i++) {
+      if (i > 0) await new Promise<void>(r => setTimeout(r, 300))
+
+      const stock = stocks[i]
+      const price = await fetchYahooPrice(stock.ticker)
+
+      if (price === null) { failed++; continue }
+
+      const deviation = Math.abs(price - stock.avgPriceUSD) / stock.avgPriceUSD
+      if (deviation > 0.6) { skipped++; continue }
+
+      const rate = currentExchangeRate ?? stock.exchangeRate
+      await prisma.uSStock.update({
+        where: { id: stock.id },
+        data: {
+          currentPriceUSD:    price,
+          currentValueINR:    stock.quantity * price * rate,
+          exchangeRate:       rate,
+          lastPriceUpdatedAt: new Date(),
+        },
+      })
+      updated++
+    }
+  } catch {
+    // Non-fatal — cron continues
+  }
+
+  return { updated, failed, skipped, exchangeRate: currentExchangeRate }
+}
+
 export async function GET() {
   try {
-    const [sips, epf, rds, fds] = await Promise.all([
+    const [sips, epf, rds, fds, usStocks] = await Promise.all([
       processSips(),
       processEPFContributions(),
       processRDs(),
       processFDs(),
+      processUSStocks(),
     ])
-    return NextResponse.json({ ok: true, sips, epf, rds, fds })
+    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -219,13 +285,14 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const [sips, epf, rds, fds] = await Promise.all([
+    const [sips, epf, rds, fds, usStocks] = await Promise.all([
       processSips(),
       processEPFContributions(),
       processRDs(),
       processFDs(),
+      processUSStocks(),
     ])
-    return NextResponse.json({ ok: true, sips, epf, rds, fds })
+    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
