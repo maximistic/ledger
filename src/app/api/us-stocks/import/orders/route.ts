@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 import { parseINDmoneyOrders } from '@/lib/parsers/indmoneyOrders'
 import { calculateUSStockMetrics } from '@/lib/usStockUtils'
@@ -20,14 +19,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing file field' }, { status: 400 })
 
   const buffer = Buffer.from(await file.arrayBuffer())
-
-  const workbook = XLSX.read(buffer, { type: 'buffer' })
-  if (!workbook.SheetNames.includes('ORDER_BOOK')) {
-    return NextResponse.json(
-      { error: 'Wrong file uploaded. Please upload the Order Report (.xls), not the Holdings Report. The Order Report contains a sheet named ORDER_BOOK.' },
-      { status: 400 }
-    )
-  }
 
   let rows: ReturnType<typeof parseINDmoneyOrders>
   try {

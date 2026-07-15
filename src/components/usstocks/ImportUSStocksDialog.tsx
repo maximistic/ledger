@@ -152,7 +152,10 @@ export default function ImportUSStocksDialog({ onClose, onSuccess }: Props) {
               <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', fontSize: '12.5px', color: 'var(--color-text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
                 {tab === 'holdings'
                   ? 'Import your current US stock positions from INDmoney. Best for first-time setup.'
-                  : 'Import your full US stock transaction history from INDmoney. Import Holdings first.'}
+                  : <>
+                      Import your full US stock transaction history from INDmoney. Import Holdings first.
+                      {' '}If you cannot download the Order Report from INDmoney, you can add transactions manually by clicking on any stock row.
+                    </>}
               </div>
 
               {/* Steps */}
