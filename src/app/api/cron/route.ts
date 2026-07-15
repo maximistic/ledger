@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calculateMFMetrics } from '@/lib/mfUtils'
+import { calculateFDCurrentValue, calculateRDCurrentValue } from '@/lib/fdCalculator'
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -128,10 +129,88 @@ async function processEPFContributions(): Promise<{ processed: boolean; skipped:
   }
 }
 
+async function processRDs(): Promise<{ processed: number; errors: string[] }> {
+  const today = new Date()
+  let processed = 0
+  const errors: string[] = []
+
+  const rds = await prisma.rDAccount.findMany({
+    where:   { maturityDate: { gt: today } },
+    include: { topUps: true },
+  })
+
+  for (const rd of rds) {
+    try {
+      const alreadyProcessed =
+        rd.lastProcessedDate !== null &&
+        rd.lastProcessedDate.getMonth()    === today.getMonth() &&
+        rd.lastProcessedDate.getFullYear() === today.getFullYear()
+
+      if (!alreadyProcessed && today.getDate() >= rd.dayOfMonth) {
+        const { currentValue, totalInvested } = calculateRDCurrentValue({
+          monthlyAmount: rd.monthlyAmount,
+          annualRate:    rd.interestRate,
+          startDate:     rd.startDate,
+          dayOfMonth:    rd.dayOfMonth,
+          topUps:        rd.topUps,
+        })
+
+        await prisma.rDAccount.update({
+          where: { id: rd.id },
+          data: {
+            currentValue,
+            totalInvested,
+            interestEarned:    currentValue - totalInvested,
+            lastProcessedDate: today,
+          },
+        })
+        processed++
+      }
+    } catch (err) {
+      errors.push(`${rd.name}: ${err instanceof Error ? err.message : 'error'}`)
+    }
+  }
+
+  return { processed, errors }
+}
+
+async function processFDs(): Promise<{ processed: number; errors: string[] }> {
+  let processed = 0
+  const errors: string[] = []
+
+  const fds = await prisma.fDAccount.findMany()
+
+  for (const fd of fds) {
+    try {
+      const { currentValue, interestEarned } = calculateFDCurrentValue({
+        principal:       fd.principal,
+        annualRate:      fd.interestRate,
+        startDate:       fd.startDate,
+        compoundingType: fd.compoundingType,
+      })
+
+      await prisma.fDAccount.update({
+        where: { id: fd.id },
+        data:  { currentValue, interestEarned },
+      })
+      processed++
+    } catch (err) {
+      errors.push(`${fd.name}: ${err instanceof Error ? err.message : 'error'}`)
+    }
+  }
+
+  return { processed, errors }
+}
+
 export async function GET() {
   try {
-    const [sips, epf] = await Promise.all([processSips(), processEPFContributions()])
-    return NextResponse.json({ ok: true, sips, epf })
+    const [sips, epf, rds, fds] = await Promise.all([
+      processSips(),
+      processEPFContributions(),
+      processRDs(),
+      processFDs(),
+    ])
+    return NextResponse.json({ ok: true, sips, epf, rds, fds })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -140,8 +219,13 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const [sips, epf] = await Promise.all([processSips(), processEPFContributions()])
-    return NextResponse.json({ ok: true, sips, epf })
+    const [sips, epf, rds, fds] = await Promise.all([
+      processSips(),
+      processEPFContributions(),
+      processRDs(),
+      processFDs(),
+    ])
+    return NextResponse.json({ ok: true, sips, epf, rds, fds })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
