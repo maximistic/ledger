@@ -196,3 +196,38 @@ model RDTopUp {
 
   @@index([rdId])
 }
+
+model USStock {
+  id                  String               @id @default(cuid())
+  name                String
+  ticker              String               @unique
+  exchange            String               @default("NASDAQ")
+  quantity            Float
+  avgPriceUSD         Float
+  currentPriceUSD     Float                @default(0)
+  exchangeRate        Float                @default(84)
+  investedValueINR    Float                @default(0)
+  currentValueINR     Float                @default(0)
+  holdingsQuantity    Float                @default(0)
+  lastPriceUpdatedAt  DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  transactions        USStockTransaction[]
+}
+
+model USStockTransaction {
+  id           String   @id @default(cuid())
+  stockId      String
+  stock        USStock  @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  date         DateTime
+  type         String   // BUY | SELL
+  quantity     Float
+  priceUSD     Float
+  amountUSD    Float
+  amountINR    Float
+  exchangeRate Float
+  createdAt    DateTime @default(now())
+
+  @@index([stockId])
+  @@index([date])
+}
