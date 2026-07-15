@@ -120,7 +120,7 @@ function EmptyState({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', gap: '12px' }}>
       <TrendingUp size={36} color="var(--color-text-muted)" strokeWidth={1.5} />
-      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No US stocks yet</div>
+      <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No international stocks yet</div>
       <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
         Add or import from INDmoney
       </div>
@@ -294,7 +294,7 @@ export default function USStocksTab({ onTotalsChange }: Props) {
         if (updated) setSelectedStock(updated)
       }
     } catch {
-      setError('Could not load US stocks. Please refresh the page.')
+      setError('Could not load international stocks. Please refresh the page.')
     } finally {
       setLoading(false)
     }
@@ -333,7 +333,7 @@ export default function USStocksTab({ onTotalsChange }: Props) {
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
-            US Stocks
+            International
           </div>
           <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
             {formatShort(totalCurrent)}

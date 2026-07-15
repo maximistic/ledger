@@ -38,7 +38,7 @@ interface StockItem {
 
 const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf' | 'epf'>; label: string; countLabel: string; invested: number }[] = [
   { value: 'fd', label: 'FDs & RDs', countLabel: '2 accounts', invested: 200000 },
-  { value: 'us', label: 'US Stocks', countLabel: '4 holdings', invested: 85000  },
+  { value: 'us', label: 'International', countLabel: '4 holdings', invested: 85000  },
 ]
 
 // ─── Rail visibility ──────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ const SECTION_LABELS: Record<keyof typeof DEFAULT_VISIBILITY, string> = {
   mf:     'Mutual Funds',
   epf:    'EPF',
   fd:     'FDs & RDs',
-  us:     'US Stocks',
+  us:     'International',
 }
 
 const COMING_SOON_SECTIONS = ['Gold', 'Real Estate', 'PPF']
@@ -754,7 +754,7 @@ export default function AssetsPage() {
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
                     color: rLabel(active),
-                  }}>US Stocks</div>
+                  }}>International</div>
                   <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
                     {usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}
                   </div>

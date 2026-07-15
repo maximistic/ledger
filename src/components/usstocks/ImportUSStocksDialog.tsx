@@ -317,13 +317,13 @@ function ResultView({
 }
 
 const holdingsSteps = [
-  'Open INDmoney app → Portfolio → US Stocks',
+  'Open INDmoney app → Portfolio → International',
   'Tap the download/export icon',
   'Download Holdings Report (.xls) and upload below',
 ]
 
 const ordersSteps = [
-  'Open INDmoney app → Portfolio → US Stocks',
+  'Open INDmoney app → Portfolio → International',
   'Tap the download/export icon',
   'Download Order Report (.xls) and upload below',
 ]
