@@ -100,5 +100,7 @@ export function parseINDmoneyOrders(buffer: Buffer): Array<{
   }
 
   // Return sorted by date ascending
-  return results.sort((a, b) => a.date.getTime() - b.date.getTime())
+  const sorted = results.sort((a, b) => a.date.getTime() - b.date.getTime())
+  console.log('Parsed orders sample:', sorted[0])
+  return sorted
 }
