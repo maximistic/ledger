@@ -8,6 +8,7 @@ import TransactionDialog from '@/components/stocks/TransactionDialog'
 import ImportDialog from '@/components/stocks/ImportDialog'
 import MutualFundsTab from '@/components/mf/MutualFundsTab'
 import EPFTab from '@/components/epf/EPFTab'
+import FDRDTab from '@/components/fdrd/FDRDTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,8 +316,9 @@ export default function AssetsPage() {
   const [fetchError, setFetchError] = useState('')
 
   // Asset-level summary states (populated on mount so rail cards are correct before a tab is visited)
-  const [mfSummary, setMFSummary] = useState({ count: 0, invested: 0, currentValue: 0 })
-  const [epfSummary, setEPFSummary] = useState({ configured: false, corpus: 0 })
+  const [mfSummary,   setMFSummary]   = useState({ count: 0, invested: 0, currentValue: 0 })
+  const [epfSummary,  setEPFSummary]  = useState({ configured: false, corpus: 0 })
+  const [fdrdSummary, setFdrdSummary] = useState({ count: 0, currentValue: 0 })
 
   // Rail visibility (persisted to localStorage)
   const [railVisibility, setRailVisibility] = useState(() => {
@@ -395,11 +397,13 @@ export default function AssetsPage() {
         fetch('/api/mf'),
         fetch('/api/epf'),
       ])
-      // fire-and-forget for future tabs; 404s are fine
-      Promise.all([
+      // FD + RD summaries for rail card
+      const [fdRes, rdRes] = await Promise.all([
         fetch('/api/fd').catch(() => null),
-        fetch('/api/us-stocks').catch(() => null),
+        fetch('/api/rd').catch(() => null),
       ])
+      // fire-and-forget for other future tabs
+      fetch('/api/us-stocks').catch(() => null)
 
       if (mfRes.ok) {
         const data = await mfRes.json() as {
@@ -425,6 +429,17 @@ export default function AssetsPage() {
         } else {
           setEPFSummary({ configured: false, corpus: 0 })
         }
+      }
+
+      if (fdRes?.ok && rdRes?.ok) {
+        const [fdData, rdData] = await Promise.all([
+          fdRes.json() as Promise<{ fds?: unknown[]; totals?: { totalCurrentValue?: number } }>,
+          rdRes.json() as Promise<{ rds?: unknown[]; totals?: { totalCurrentValue?: number } }>,
+        ])
+        setFdrdSummary({
+          count: (fdData.fds?.length ?? 0) + (rdData.rds?.length ?? 0),
+          currentValue: (fdData.totals?.totalCurrentValue ?? 0) + (rdData.totals?.totalCurrentValue ?? 0),
+        })
       }
     } catch (err) {
       console.error('Failed to fetch asset summaries:', err)
@@ -682,7 +697,6 @@ export default function AssetsPage() {
 
             {/* FDs & RDs */}
             {railVisibility.fd && (() => {
-              const ac = otherAssets.find(a => a.value === 'fd')!
               const active = activeTab === 'fd'
               return (
                 <div
@@ -697,13 +711,15 @@ export default function AssetsPage() {
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
                     color: rLabel(active),
-                  }}>{ac.label}</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{ac.countLabel}</div>
+                  }}>FDs & RDs</div>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
+                    {fdrdSummary.count > 0 ? `${fdrdSummary.count} account${fdrdSummary.count === 1 ? '' : 's'}` : 'No accounts'}
+                  </div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
                     color: rValue(active),
                   }}>
-                    {formatShort(ac.invested)}
+                    {formatShort(fdrdSummary.currentValue)}
                   </div>
                 </div>
               )
@@ -844,6 +860,10 @@ export default function AssetsPage() {
             onCorpusChange={(corpus, hasAccount) => {
               setEPFSummary({ configured: hasAccount, corpus })
             }}
+          />
+        ) : activeTab === 'fd' ? (
+          <FDRDTab
+            onTotalsChange={t => setFdrdSummary({ count: t.count, currentValue: t.currentValue })}
           />
         ) : (
           <>
