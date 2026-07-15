@@ -139,3 +139,60 @@ model EPFTransaction {
   @@index([accountId])
   @@index([transactionDate])
 }
+
+model FDAccount {
+  id              String   @id @default(cuid())
+  name            String
+  bankName        String
+  platform        String
+  principal       Float
+  interestRate    Float
+  compoundingType String
+  fdType          String
+  startDate       DateTime
+  maturityDate    DateTime
+  tenureMonths    Int
+  currentValue    Float    @default(0)
+  maturityValue   Float    @default(0)
+  interestEarned  Float    @default(0)
+  isAutoRenew     Boolean  @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RDAccount {
+  id                String    @id @default(cuid())
+  name              String
+  bankName          String
+  platform          String
+  monthlyAmount     Float
+  interestRate      Float
+  startDate         DateTime
+  maturityDate      DateTime
+  tenureMonths      Int
+  dayOfMonth        Int       @default(1)
+  currentValue      Float     @default(0)
+  totalInvested     Float     @default(0)
+  maturityValue     Float     @default(0)
+  interestEarned    Float     @default(0)
+  isAutoRenew       Boolean   @default(false)
+  notes             String?
+  lastProcessedDate DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  topUps            RDTopUp[]
+}
+
+model RDTopUp {
+  id          String    @id @default(cuid())
+  rdId        String
+  rd          RDAccount @relation(fields: [rdId], references: [id], onDelete: Cascade)
+  amount      Float
+  startDate   DateTime
+  isRecurring Boolean   @default(false)
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([rdId])
+}
