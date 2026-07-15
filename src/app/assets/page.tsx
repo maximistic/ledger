@@ -9,6 +9,7 @@ import ImportDialog from '@/components/stocks/ImportDialog'
 import MutualFundsTab from '@/components/mf/MutualFundsTab'
 import EPFTab from '@/components/epf/EPFTab'
 import FDRDTab from '@/components/fdrd/FDRDTab'
+import USStocksTab from '@/components/usstocks/USStocksTab'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -319,6 +320,7 @@ export default function AssetsPage() {
   const [mfSummary,   setMFSummary]   = useState({ count: 0, invested: 0, currentValue: 0 })
   const [epfSummary,  setEPFSummary]  = useState({ configured: false, corpus: 0 })
   const [fdrdSummary, setFdrdSummary] = useState({ count: 0, currentValue: 0 })
+  const [usSummary,   setUSSummary]   = useState({ count: 0, currentValue: 0 })
 
   // Rail visibility (persisted to localStorage)
   const [railVisibility, setRailVisibility] = useState(() => {
@@ -402,8 +404,8 @@ export default function AssetsPage() {
         fetch('/api/fd').catch(() => null),
         fetch('/api/rd').catch(() => null),
       ])
-      // fire-and-forget for other future tabs
-      fetch('/api/us-stocks').catch(() => null)
+      // US Stocks summary for rail card
+      const usRes = await fetch('/api/us-stocks').catch(() => null)
 
       if (mfRes.ok) {
         const data = await mfRes.json() as {
@@ -439,6 +441,17 @@ export default function AssetsPage() {
         setFdrdSummary({
           count: (fdData.fds?.length ?? 0) + (rdData.rds?.length ?? 0),
           currentValue: (fdData.totals?.totalCurrentValue ?? 0) + (rdData.totals?.totalCurrentValue ?? 0),
+        })
+      }
+
+      if (usRes?.ok) {
+        const usData = await usRes.json() as {
+          stocks?: unknown[]
+          totals?: { totalCurrentValueINR?: number; count?: number }
+        }
+        setUSSummary({
+          count:        usData.totals?.count             ?? usData.stocks?.length ?? 0,
+          currentValue: usData.totals?.totalCurrentValueINR ?? 0,
         })
       }
     } catch (err) {
@@ -727,7 +740,6 @@ export default function AssetsPage() {
 
             {/* US Stocks */}
             {railVisibility.us && (() => {
-              const ac = otherAssets.find(a => a.value === 'us')!
               const active = activeTab === 'us'
               return (
                 <div
@@ -742,13 +754,15 @@ export default function AssetsPage() {
                   <div style={{
                     fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
                     color: rLabel(active),
-                  }}>{ac.label}</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{ac.countLabel}</div>
+                  }}>US Stocks</div>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
+                    {usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}
+                  </div>
                   <div style={{
                     fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
                     color: rValue(active),
                   }}>
-                    {formatShort(ac.invested)}
+                    {formatShort(usSummary.currentValue)}
                   </div>
                 </div>
               )
@@ -864,6 +878,10 @@ export default function AssetsPage() {
         ) : activeTab === 'fd' ? (
           <FDRDTab
             onTotalsChange={t => setFdrdSummary({ count: t.count, currentValue: t.currentValue })}
+          />
+        ) : activeTab === 'us' ? (
+          <USStocksTab
+            onTotalsChange={t => setUSSummary({ count: t.count, currentValue: t.currentValue })}
           />
         ) : (
           <>
