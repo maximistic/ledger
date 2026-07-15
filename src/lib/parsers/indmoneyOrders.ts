@@ -12,38 +12,46 @@ export function parseINDmoneyOrders(buffer: Buffer): Array<{
   const workbook = XLSX.read(buffer, { type: 'buffer' })
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
-  if (!sheet)
-    throw new Error('Could not find order data in this file. Please upload the Order Report from INDmoney.')
 
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
 
+  // Find header row — look for 'Transaction Type' column (unique to orders file)
   const headerRowIndex = rows.findIndex(row =>
-    row.some(cell => String(cell).trim().toLowerCase().includes('stock symbol'))
+    (row as unknown[]).some(cell =>
+      String(cell).toLowerCase().includes('transaction type')
+    )
   )
-  if (headerRowIndex === -1)
-    throw new Error('Could not find order data in this file. Please upload the Order Report from INDmoney.')
 
-  const headers = rows[headerRowIndex].map(h => String(h ?? '').trim())
-  const dataRows = rows.slice(headerRowIndex + 1)
-  const col = (keyword: string) =>
-    headers.findIndex(h => h.toLowerCase().includes(keyword.toLowerCase()))
+  if (headerRowIndex === -1) {
+    throw new Error(
+      'Could not find Transaction Type column. ' +
+      'Please upload the Order Report from INDmoney, not the Holdings Report.'
+    )
+  }
 
-  const tickerCol     = col('symbol')
-  const nameCol       = col('stock name')
-  const txTypeCol     = col('transaction type')
-  const quantityCol   = col('quantity')
-  const priceCol      = col('price')
-  const amountCol     = col('amount')
-  const execTimeCol   = col('execution time')
-  const placedTimeCol = col('placed time')
+  const headers = (rows[headerRowIndex] as unknown[]).map(h =>
+    String(h ?? '').trim().toLowerCase()
+  )
 
-  // "Transaction Type" is the column that distinguishes orders file from holdings file
-  if (txTypeCol === -1)
-    throw new Error('Could not find order data in this file. Please upload the Order Report from INDmoney.')
+  const nameCol         = headers.findIndex(h => h.includes('stock name') || (h.includes('stock') && h.includes('name')))
+  const tickerCol       = headers.findIndex(h => h.includes('stock symbol') || h.includes('symbol'))
+  const executionTimeCol = headers.findIndex(h => h.includes('execution time'))
+  const placedTimeCol   = headers.findIndex(h => h.includes('placed time'))
+  const txTypeCol       = headers.findIndex(h => h.includes('transaction type'))
+  const qtyCol          = headers.findIndex(h => h.includes('quantity'))
+  const priceCol        = headers.findIndex(h => h.includes('price') && !h.includes('amount'))
+  const amountCol       = headers.findIndex(h => h.includes('order amount') || (h.includes('amount') && !h.includes('brokerage')))
 
-  if (tickerCol === -1)   throw new Error('Missing "Stock Symbol" column')
-  if (quantityCol === -1) throw new Error('Missing "Quantity" column')
-  if (priceCol === -1)    throw new Error('Missing "Price" column')
+  if (tickerCol === -1 || txTypeCol === -1 || qtyCol === -1) {
+    throw new Error('Missing required columns in Orders file.')
+  }
+
+  // Handles "10 Jul 2024, 08:04 PM" — native Date() parses this fine
+  const parseDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null
+    const d = new Date(dateStr.trim())
+    return isNaN(d.getTime()) ? null : d
+  }
 
   const results: Array<{
     ticker: string
@@ -55,49 +63,40 @@ export function parseINDmoneyOrders(buffer: Buffer): Array<{
     amountUSD: number
   }> = []
 
-  for (const row of dataRows) {
-    if (!row || row.length === 0) continue
+  const dataRows = rows.slice(headerRowIndex + 1)
 
-    const ticker = row[tickerCol]?.toString().trim().toUpperCase()
-    if (!ticker) continue
+  for (const row of dataRows as unknown[][]) {
+    const ticker = String(row[tickerCol] ?? '').trim().toUpperCase()
+    if (!ticker || !/^[A-Z]{1,5}$/.test(ticker)) continue
 
-    const stockName = nameCol !== -1 && row[nameCol]
-      ? String(row[nameCol]).trim()
-      : ticker
+    const rawName   = nameCol !== -1 ? String(row[nameCol] ?? '').trim() : ''
+    const stockName = rawName.length > 60 ? rawName.slice(0, 60).trim() : rawName || ticker
 
-    // INDmoney values are "buy" / "sell" (lowercase)
-    const rawType = row[txTypeCol]?.toString().trim().toUpperCase()
-    if (rawType !== 'BUY' && rawType !== 'SELL') continue
-    const type = rawType as 'BUY' | 'SELL'
+    const rawType = String(row[txTypeCol] ?? '').trim().toLowerCase()
+    const type = rawType === 'buy' ? 'BUY' : rawType === 'sell' ? 'SELL' : null
+    if (!type) continue
 
-    const quantity = parseFloat(String(row[quantityCol] ?? ''))
+    const quantity = parseFloat(String(row[qtyCol] ?? '0'))
     if (isNaN(quantity) || quantity <= 0) continue
 
-    const priceUSD = parseFloat(String(row[priceCol] ?? ''))
+    const priceUSD = priceCol !== -1 ? parseFloat(String(row[priceCol] ?? '0')) : 0
     if (isNaN(priceUSD) || priceUSD <= 0) continue
 
-    let amountUSD = quantity * priceUSD
-    if (amountCol !== -1 && row[amountCol] !== undefined) {
-      const parsed = parseFloat(String(row[amountCol]))
-      if (!isNaN(parsed) && parsed > 0) amountUSD = parsed
-    }
+    const rawAmount = amountCol !== -1 ? parseFloat(String(row[amountCol] ?? '0')) : 0
+    const amountUSD = !isNaN(rawAmount) && rawAmount > 0 ? rawAmount : quantity * priceUSD
 
-    // Try execution time first, then placed time
-    let date: Date | null = null
-    if (execTimeCol !== -1 && row[execTimeCol]) {
-      const d = new Date(String(row[execTimeCol]))
-      if (!isNaN(d.getTime())) date = d
-    }
-    if (!date && placedTimeCol !== -1 && row[placedTimeCol]) {
-      const d = new Date(String(row[placedTimeCol]))
-      if (!isNaN(d.getTime())) date = d
-    }
+    const dateStr = executionTimeCol !== -1
+      ? String(row[executionTimeCol] ?? '')
+      : placedTimeCol !== -1
+        ? String(row[placedTimeCol] ?? '')
+        : ''
+    const date = parseDate(dateStr)
     if (!date) continue
 
     results.push({ ticker, stockName, date, type, quantity, priceUSD, amountUSD })
   }
 
-  const sorted = results.sort((a, b) => a.date.getTime() - b.date.getTime())
-  console.log('Parsed orders sample:', sorted[0])
-  return sorted
+  results.sort((a, b) => a.date.getTime() - b.date.getTime())
+  console.log('Parsed orders sample:', results[0])
+  return results
 }

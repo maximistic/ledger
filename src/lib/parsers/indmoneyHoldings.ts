@@ -4,62 +4,66 @@ export function parseINDmoneyHoldings(buffer: Buffer): Array<{
   ticker: string
   quantity: number
   avgPriceUSD: number
-  currentValueUSD: number
+  totalValueUSD: number
 }> {
   const workbook = XLSX.read(buffer, { type: 'buffer' })
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
-  if (!sheet)
-    throw new Error('Could not find stock data in this file. Please upload the Holdings Report from INDmoney.')
 
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
 
+  // Find header row — look for row containing 'Stock Symbol'
   const headerRowIndex = rows.findIndex(row =>
-    row.some(cell => String(cell).trim().toLowerCase().includes('stock symbol'))
+    (row as unknown[]).some(cell =>
+      String(cell).toLowerCase().includes('stock symbol')
+    )
   )
-  if (headerRowIndex === -1)
-    throw new Error('Could not find stock data in this file. Please upload the Holdings Report from INDmoney.')
 
-  const headers = rows[headerRowIndex].map(h => String(h ?? '').trim())
-  const dataRows = rows.slice(headerRowIndex + 1)
-  const col = (keyword: string) =>
-    headers.findIndex(h => h.toLowerCase().includes(keyword.toLowerCase()))
+  if (headerRowIndex === -1) {
+    throw new Error(
+      'Could not find Stock Symbol column. ' +
+      'Please upload the Holdings Report from INDmoney, not the Order Report.'
+    )
+  }
 
-  const tickerCol     = col('symbol')
-  const quantityCol   = col('quantity')
-  const avgPriceCol   = col('avg')
-  const totalValueCol = col('total')
+  const headers = (rows[headerRowIndex] as unknown[]).map(h =>
+    String(h ?? '').trim().toLowerCase()
+  )
 
-  if (tickerCol === -1)   throw new Error('Missing "Stock Symbol" column')
-  if (quantityCol === -1) throw new Error('Missing "Quantity" column')
-  if (avgPriceCol === -1) throw new Error('Missing "Avg. Price" column')
+  const tickerCol = headers.findIndex(h => h.includes('stock symbol') || h.includes('symbol'))
+  const qtyCol    = headers.findIndex(h => h.includes('quantity'))
+  const avgCol    = headers.findIndex(h => h.includes('avg'))
+  const totalCol  = headers.findIndex(h => h.includes('total'))
+
+  if (tickerCol === -1 || qtyCol === -1) {
+    throw new Error('Missing required columns in Holdings file.')
+  }
 
   const results: Array<{
     ticker: string
     quantity: number
     avgPriceUSD: number
-    currentValueUSD: number
+    totalValueUSD: number
   }> = []
 
-  for (const row of dataRows) {
-    if (!row || row.length === 0) continue
+  const dataRows = rows.slice(headerRowIndex + 1)
 
-    const ticker = row[tickerCol]?.toString().trim().toUpperCase()
-    if (!ticker) continue
+  for (const row of dataRows as unknown[][]) {
+    const ticker = String(row[tickerCol] ?? '').trim().toUpperCase()
+    const quantity = parseFloat(String(row[qtyCol] ?? '0'))
+    const avgPriceUSD = avgCol !== -1 ? parseFloat(String(row[avgCol] ?? '0')) : 0
+    const totalValueUSD = totalCol !== -1 ? parseFloat(String(row[totalCol] ?? '0')) : 0
 
-    const quantity = parseFloat(String(row[quantityCol] ?? ''))
-    if (isNaN(quantity) || quantity <= 0) continue
+    // Skip empty rows, header re-occurrences, disclaimer rows
+    if (!ticker || ticker === 'STOCK SYMBOL' || isNaN(quantity) || quantity <= 0) continue
+    // Skip non-ticker rows (US tickers are 1-5 uppercase letters)
+    if (!/^[A-Z]{1,5}$/.test(ticker)) continue
 
-    const avgPriceUSD = parseFloat(String(row[avgPriceCol] ?? ''))
-    if (isNaN(avgPriceUSD) || avgPriceUSD <= 0) continue
+    results.push({ ticker, quantity, avgPriceUSD, totalValueUSD })
+  }
 
-    let currentValueUSD = quantity * avgPriceUSD
-    if (totalValueCol !== -1 && row[totalValueCol] !== undefined) {
-      const parsed = parseFloat(String(row[totalValueCol]))
-      if (!isNaN(parsed) && parsed > 0) currentValueUSD = parsed
-    }
-
-    results.push({ ticker, quantity, avgPriceUSD, currentValueUSD })
+  if (results.length === 0) {
+    throw new Error('No holdings found in file. Check that this is the Holdings Report.')
   }
 
   return results

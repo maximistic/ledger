@@ -23,6 +23,7 @@ interface OrdersResult {
   created: number
   skipped: number
   skippedTickers: string[]
+  stocks: string[]
   errors: string[]
 }
 

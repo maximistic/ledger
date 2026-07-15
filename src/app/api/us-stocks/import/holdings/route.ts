@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         )
         const newQty       = row.quantity + txnNet
         const rate         = existing.exchangeRate > 0 ? existing.exchangeRate : DEFAULT_RATE
-        const currentPerSh = row.currentValueUSD / row.quantity  // derived current price per share
+        const currentPerSh = row.totalValueUSD / row.quantity  // derived current price per share
 
         await prisma.uSStock.update({
           where: { id: existing.id },
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         updated++
       } else {
         const rate            = DEFAULT_RATE
-        const currentPriceUSD = row.currentValueUSD / row.quantity
+        const currentPriceUSD = row.totalValueUSD / row.quantity
 
         await prisma.uSStock.create({
           data: {
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
             currentPriceUSD,
             exchangeRate:     rate,
             investedValueINR: row.quantity * row.avgPriceUSD * rate,
-            currentValueINR:  row.currentValueUSD * rate,
+            currentValueINR:  row.totalValueUSD * rate,
           },
         })
         imported++

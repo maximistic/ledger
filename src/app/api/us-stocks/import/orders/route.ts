@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parseINDmoneyOrders } from '@/lib/parsers/indmoneyOrders'
-import { calculateUSStockMetrics } from '@/lib/usStockUtils'
 
 // Orders only enrich existing holdings with transaction history.
 // Tickers not found in the DB are skipped — never created.
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (rows.length === 0)
     return NextResponse.json({ error: 'No valid rows found in file' }, { status: 422 })
 
-  // Build name map from parsed rows (ORDER_BOOK has full company names)
+  // Build name map from parsed rows (orders file has full company names)
   const nameMap = new Map<string, string>()
   for (const order of rows) {
     if (order.stockName && order.ticker && !nameMap.has(order.ticker)) {
@@ -49,11 +48,12 @@ export async function POST(request: NextRequest) {
     byTicker.set(row.ticker, list)
   }
 
-  let processed         = 0
-  let created           = 0
-  let skipped           = 0
+  let processed = 0
+  let created   = 0
+  let skipped   = 0
   const skippedTickers: string[] = []
-  const errors: string[] = []
+  const stocks: string[]         = []
+  const errors: string[]         = []
 
   for (const [ticker, orders] of byTicker) {
     try {
@@ -73,13 +73,15 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const stockId  = stock.id
+      const stockId = stock.id
       const existing = await prisma.uSStockTransaction.findMany({ where: { stockId } })
-      const txKey    = (t: { date: Date; type: string; quantity: number; priceUSD: number }) =>
+      const txKey = (t: { date: Date; type: string; quantity: number; priceUSD: number }) =>
         `${new Date(t.date).toISOString().slice(0, 10)}|${t.type}|${t.quantity}|${t.priceUSD}`
       const existingKeys = new Set(existing.map(txKey))
 
-      const toInsert = orders.filter(o => !existingKeys.has(txKey({ date: o.date, type: o.type, quantity: o.quantity, priceUSD: o.priceUSD })))
+      const toInsert = orders.filter(o =>
+        !existingKeys.has(txKey({ date: o.date, type: o.type, quantity: o.quantity, priceUSD: o.priceUSD }))
+      )
 
       processed += orders.length
       skipped   += orders.length - toInsert.length
@@ -88,43 +90,42 @@ export async function POST(request: NextRequest) {
         await prisma.uSStockTransaction.createMany({
           data: toInsert.map(o => ({
             stockId,
-            date:        o.date,
-            type:        o.type,
-            quantity:    o.quantity,
-            priceUSD:    o.priceUSD,
-            amountUSD:   o.amountUSD,
-            amountINR:   o.amountUSD * stock.exchangeRate,
+            date:         o.date,
+            type:         o.type,
+            quantity:     o.quantity,
+            priceUSD:     o.priceUSD,
+            amountUSD:    o.amountUSD,
+            amountINR:    o.amountUSD * stock.exchangeRate,
             exchangeRate: stock.exchangeRate,
           })),
         })
         created += toInsert.length
+        stocks.push(ticker)
 
-        // Recalculate stock metrics after inserting new transactions
+        // Recalculate from all transactions (including newly inserted)
         const allTxns = await prisma.uSStockTransaction.findMany({ where: { stockId } })
-        const { quantity, avgPriceUSD } = calculateUSStockMetrics(
-          allTxns, stock.holdingsQuantity, stock.avgPriceUSD
-        )
+        const buyTxns = allTxns.filter(t => t.type === 'BUY')
+        const sellQty = allTxns.filter(t => t.type === 'SELL').reduce((s, t) => s + t.quantity, 0)
+        const totalBuyQty = buyTxns.reduce((s, t) => s + t.quantity, 0)
+        const weightedAvg = totalBuyQty > 0
+          ? buyTxns.reduce((s, t) => s + t.priceUSD * t.quantity, 0) / totalBuyQty
+          : stock.avgPriceUSD
+        const newQty = stock.holdingsQuantity + totalBuyQty - sellQty
 
-        if (quantity >= 0) {
-          const safeAvg  = avgPriceUSD > 0 ? avgPriceUSD : stock.avgPriceUSD
-          const safeRate = stock.exchangeRate
-          const safeCurrentPx = stock.currentPriceUSD > 0 ? stock.currentPriceUSD : safeAvg
-
-          await prisma.uSStock.update({
-            where: { id: stockId },
-            data: {
-              quantity,
-              avgPriceUSD:      safeAvg,
-              investedValueINR: quantity * safeAvg * safeRate,
-              currentValueINR:  quantity * safeCurrentPx * safeRate,
-            },
-          })
-        }
+        await prisma.uSStock.update({
+          where: { id: stockId },
+          data: {
+            quantity:         Math.max(0, newQty),
+            avgPriceUSD:      weightedAvg,
+            investedValueINR: Math.max(0, newQty) * weightedAvg * stock.exchangeRate,
+            currentValueINR:  Math.max(0, newQty) * stock.currentPriceUSD * stock.exchangeRate,
+          },
+        })
       }
     } catch (err) {
       errors.push(`${ticker}: ${err instanceof Error ? err.message : 'DB error'}`)
     }
   }
 
-  return NextResponse.json({ processed, created, skipped, skippedTickers, errors })
+  return NextResponse.json({ processed, created, skipped, skippedTickers, stocks, errors })
 }
