@@ -40,7 +40,7 @@ const gridCols = '2.4fr 0.8fr 0.8fr 1fr 1fr 32px'
 
 const headerCell: React.CSSProperties = {
   fontSize: '10.5px', color: 'var(--color-text-muted)',
-  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600,
+  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500,
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
