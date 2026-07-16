@@ -59,7 +59,7 @@ const COMING_SOON_SECTIONS = ['Gold', 'Real Estate', 'PPF']
 
 // ─── Grid ─────────────────────────────────────────────────────────────────────
 
-const gridCols = '2.2fr 0.6fr 1fr 1fr 1fr 32px'
+const gridCols = '2fr 0.5fr 0.8fr 0.8fr 0.9fr 0.9fr 0.9fr 28px'
 
 const headerCell: React.CSSProperties = {
   fontSize: '10.5px',
@@ -79,14 +79,14 @@ function SkeletonTable() {
         border: '0.5px solid var(--color-border)',
         borderRadius: '10px',
         overflow: 'hidden',
-        minWidth: '520px',
+        minWidth: '900px',
       }}>
         <div style={{
           display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
           background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)',
           padding: '10px 20px',
         }}>
-          {['Name', 'Qty', 'Avg Price', 'Current', 'P&L', ''].map(h => (
+          {['Name', 'Qty', 'Avg', 'LTP', 'Invested', 'Current', 'P&L', ''].map(h => (
             <div key={h} style={headerCell}>{h}</div>
           ))}
         </div>
@@ -104,7 +104,7 @@ function SkeletonTable() {
                 <div style={{ height: 11, width: 70, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
               </div>
             </div>
-            {Array.from({ length: 4 }).map((_, j) => (
+            {Array.from({ length: 6 }).map((_, j) => (
               <div key={j} style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
             ))}
             <div />
@@ -173,7 +173,7 @@ function StocksTable({
         border: '0.5px solid var(--color-border)',
         borderRadius: '10px',
         overflow: 'hidden',
-        minWidth: '520px',
+        minWidth: '900px',
       }}>
         {/* Header */}
         <div style={{
@@ -183,7 +183,9 @@ function StocksTable({
         }}>
           <div style={headerCell}>Name</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>Qty</div>
-          <div style={{ ...headerCell, textAlign: 'right' }}>Avg Price</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>Avg</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>LTP</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>Invested</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>Current</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>P&amp;L</div>
           <div />
@@ -245,7 +247,7 @@ function StocksTable({
                 {formatINR(stock.avgPrice)}
               </div>
 
-              {/* Current price / stale indicator */}
+              {/* LTP (current price) / stale indicator */}
               <div style={{ textAlign: 'right' }}>
                 {stock.priceStale ? (
                   <div>
@@ -261,6 +263,25 @@ function StocksTable({
                     {formatINR(stock.currentPrice)}
                   </div>
                 )}
+              </div>
+
+              {/* Invested value */}
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {formatINR(stock.investedValue)}
+              </div>
+
+              {/* Current value */}
+              <div style={{
+                fontSize: '13px', fontWeight: 500, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                color: stock.priceStale
+                  ? 'var(--color-text-muted)'
+                  : stock.currentValue > stock.investedValue
+                    ? 'var(--color-gain)'
+                    : stock.currentValue < stock.investedValue
+                      ? 'var(--color-loss)'
+                      : 'var(--color-text-primary)',
+              }}>
+                {stock.priceStale ? '—' : formatINR(stock.currentValue)}
               </div>
 
               {/* P&L */}

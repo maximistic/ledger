@@ -164,7 +164,6 @@ const SK: CSSProperties = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const CIRCUMFERENCE = 263.9 // 2 * π * 42
 
 function formatINR(value: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -332,24 +331,29 @@ export default function DashboardPage() {
     monthLabels = monthLabels.slice(0, 12)
   }
 
-  // Donut segments (r=42, circumference=263.9)
-  const donutSegments = summary ? (() => {
+  // Pie segments (r=70, cx=cy=80, SVG 160×160)
+  const pieSegments = summary ? (() => {
     const { allocation: a, breakdown: b } = summary
     const fdRdPct = (a.fd ?? 0) + (a.rd ?? 0)
     const segs = [
       { label: 'Stocks',        pct: a.stocks ?? 0,   val: b.stocks.value,          color: '#111111' },
-      { label: 'Mutual Funds',  pct: a.mf ?? 0,       val: b.mf.value,              color: '#1DB954' },
-      { label: 'EPF',           pct: a.epf ?? 0,      val: b.epf.value,             color: '#6366F1' },
+      { label: 'Mutual Funds',  pct: a.mf ?? 0,       val: b.mf.value,              color: '#E8E4DC' },
+      { label: 'EPF',           pct: a.epf ?? 0,      val: b.epf.value,             color: '#16A34A' },
       { label: 'FDs & RDs',     pct: fdRdPct,         val: b.fd.value + b.rd.value, color: '#D97706' },
-      { label: 'International', pct: a.usStocks ?? 0, val: b.usStocks.value,        color: '#0EA5E9' },
+      { label: 'International', pct: a.usStocks ?? 0, val: b.usStocks.value,        color: '#6366F1' },
     ]
-    let cumPct = 0
+    const cx = 80, cy = 80, r = 70
+    let angle = -Math.PI / 2
     return segs.map(s => {
-      const dash   = (s.pct / 100) * CIRCUMFERENCE
-      const gap    = CIRCUMFERENCE - dash
-      const offset = -(cumPct / 100) * CIRCUMFERENCE
-      cumPct += s.pct
-      return { ...s, pctStr: `${Math.round(s.pct)}%`, valStr: formatShort(s.val), dashArr: `${dash.toFixed(2)} ${gap.toFixed(2)}`, offset }
+      const sweep = (s.pct / 100) * 2 * Math.PI
+      const sx = cx + r * Math.cos(angle)
+      const sy = cy + r * Math.sin(angle)
+      angle += sweep
+      const ex = cx + r * Math.cos(angle)
+      const ey = cy + r * Math.sin(angle)
+      const largeArc = sweep > Math.PI ? 1 : 0
+      const path = `M ${cx},${cy} L ${sx.toFixed(2)},${sy.toFixed(2)} A ${r},${r} 0 ${largeArc},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`
+      return { ...s, pctStr: `${Math.round(s.pct)}%`, valStr: formatShort(s.val), path, show: s.pct > 0.5 }
     })
   })() : null
 
@@ -523,32 +527,25 @@ export default function DashboardPage() {
               <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
                 Asset Allocation
               </div>
-              {loading || !donutSegments ? (
+              {loading || !pieSegments ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  <div style={{ ...SK, width: 120, height: 120, borderRadius: '50%', flexShrink: 0 }} />
+                  <div style={{ ...SK, width: 160, height: 160, borderRadius: '50%', flexShrink: 0 }} />
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px' }}>
                     {[1, 2, 3, 4, 5].map(i => <div key={i} style={{ ...SK, height: 13, width: '80%' }} />)}
                   </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  {/* Donut: r=42, cx=60, cy=60, sw=14, circumference=263.9 */}
-                  <svg width={120} height={120} viewBox="0 0 120 120" style={{ flexShrink: 0 }}>
-                    <circle cx={60} cy={60} r={42} fill="none" stroke="var(--color-surface-raised)" strokeWidth={14} />
-                    {donutSegments.map(s => (
-                      <circle
-                        key={s.label} cx={60} cy={60} r={42} fill="none"
-                        stroke={s.color} strokeWidth={14}
-                        strokeDasharray={s.dashArr}
-                        strokeDashoffset={s.offset}
-                        transform="rotate(-90 60 60)"
-                      />
+                  {/* Pie chart: r=70, cx=cy=80, SVG 160×160 */}
+                  <svg width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
+                    {pieSegments.filter(s => s.show).map(s => (
+                      <path key={s.label} d={s.path} fill={s.color} />
                     ))}
                   </svg>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>
-                    {donutSegments.map(s => (
+                    {pieSegments.map(s => (
                       <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                        <div style={{ width: 10, height: 10, borderRadius: '2px', background: s.color, flexShrink: 0 }} />
                         <span style={{ fontSize: '12.5px', color: '#555', flex: 1, minWidth: 0 }}>{s.label}</span>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>{s.pctStr}</span>
                         <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', width: '52px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{s.valStr}</span>

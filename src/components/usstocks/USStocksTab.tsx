@@ -80,7 +80,7 @@ export const USD_BADGE: React.CSSProperties = {
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 
-const GRID = '2.2fr 0.6fr 1fr 1fr 1fr 1fr'
+const GRID = '2.2fr 0.6fr 1fr 1fr 0.9fr 0.9fr 1fr'
 
 const hCell: React.CSSProperties = {
   fontSize: '10.5px', color: 'var(--color-text-muted)',
@@ -90,9 +90,9 @@ const hCell: React.CSSProperties = {
 function SkeletonTable() {
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '560px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
-          {['Name', 'Qty', 'Avg (USD)', 'Current (USD)', 'Value (INR)', 'P&L'].map(h => (
+          {['Name', 'Qty', 'Avg (USD)', 'Current (USD)', 'Invested (INR)', 'Current (INR)', 'P&L'].map(h => (
             <div key={h} style={hCell}>{h}</div>
           ))}
         </div>
@@ -105,7 +105,7 @@ function SkeletonTable() {
                 <div style={{ height: 11, width: 70, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
               </div>
             </div>
-            {Array.from({ length: 5 }).map((_, j) => (
+            {Array.from({ length: 6 }).map((_, j) => (
               <div key={j} style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
             ))}
           </div>
@@ -137,14 +137,15 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '560px' }}>
+      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
         {/* Header */}
         <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
           <div style={hCell}>Name</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Qty</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Avg (USD)</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Current (USD)</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>Value (INR)</div>
+          <div style={{ ...hCell, textAlign: 'right' }}>Invested (INR)</div>
+          <div style={{ ...hCell, textAlign: 'right' }}>Current (INR)</div>
           <div style={{ ...hCell, textAlign: 'right' }}>P&amp;L</div>
         </div>
 
@@ -219,9 +220,23 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
                 )}
               </div>
 
-              {/* Value INR */}
-              <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {formatINR(stock.currentValueINR)}
+              {/* Invested INR */}
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {formatINR(stock.investedValueINR)}
+              </div>
+
+              {/* Current INR */}
+              <div style={{
+                fontSize: '13px', fontWeight: 500, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                color: priceStale
+                  ? 'var(--color-text-muted)'
+                  : stock.currentValueINR > stock.investedValueINR
+                    ? 'var(--color-gain)'
+                    : stock.currentValueINR < stock.investedValueINR
+                      ? 'var(--color-loss)'
+                      : 'var(--color-text-primary)',
+              }}>
+                {priceStale ? '—' : formatINR(stock.currentValueINR)}
               </div>
 
               {/* P&L */}
