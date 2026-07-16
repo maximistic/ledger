@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { TrendingUp, LayoutDashboard, Camera, X, Check, Flag, Plus } from 'lucide-react'
 
@@ -18,12 +19,19 @@ interface Visibility {
   milestonesCard: boolean
 }
 
+interface RiskBucket { value: number; pct: number }
+
 interface DashboardSummary {
   totalNetWorth: number
   totalInvested: number
   gainLoss: number
   gainLossPct: number
-  riskProfile: number
+  riskProfile: {
+    equity:        RiskBucket
+    debt:          RiskBucket
+    gold:          RiskBucket
+    international: RiskBucket
+  }
   allocation: {
     stocks: number
     mf: number
@@ -81,7 +89,26 @@ interface UpcomingEvents {
   events: UpcomingEvent[]
 }
 
-// ── Static data (cashflow + milestones not wired to API yet) ──────────────────
+interface Milestone {
+  id: string
+  title: string
+  targetAmount: number
+  targetAsset: string | null
+  achievedDate: string | null
+  isAchieved: boolean
+  currentValue: number
+  progressPct: number
+  amountAway: number
+}
+
+interface HoveredBar {
+  month: string
+  investedAmt: number
+  returnsAmt: number
+  barIndex: number
+}
+
+// ── Static data ───────────────────────────────────────────────────────────────
 
 const DEFAULT_VIS: Visibility = {
   trendCard: true,
@@ -94,18 +121,12 @@ const DEFAULT_VIS: Visibility = {
 }
 
 const BARS = [
-  { month: 'Feb', inv: 52, ret: 30, now: false },
-  { month: 'Mar', inv: 58, ret: 40, now: false },
-  { month: 'Apr', inv: 52, ret: 24, now: false },
-  { month: 'May', inv: 52, ret: 36, now: false },
-  { month: 'Jun', inv: 52, ret: 44, now: false },
-  { month: 'Jul', inv: 52, ret: 36, now: true  },
-]
-
-const MILESTONES = [
-  { title: '₹1,00,000 total portfolio', target: '₹1,00,000', progress: 100, achieved: true,  sub: 'Achieved · 12 Mar 2026'        },
-  { title: '₹5,00,000 total portfolio', target: '₹5,00,000', progress: 41,  achieved: false, sub: '₹2,95,146 away · 41% there'   },
-  { title: '₹50,000 in mutual funds',   target: '₹50,000',   progress: 0,   achieved: false, sub: 'Not started yet · ₹0 invested' },
+  { month: 'Feb', inv: 52, ret: 30, now: false, investedAmt: 9300,  returnsAmt: 2800 },
+  { month: 'Mar', inv: 58, ret: 40, now: false, investedAmt: 10500, returnsAmt: 4200 },
+  { month: 'Apr', inv: 52, ret: 24, now: false, investedAmt: 9300,  returnsAmt: 2100 },
+  { month: 'May', inv: 52, ret: 36, now: false, investedAmt: 9300,  returnsAmt: 3500 },
+  { month: 'Jun', inv: 52, ret: 44, now: false, investedAmt: 9300,  returnsAmt: 4800 },
+  { month: 'Jul', inv: 52, ret: 36, now: true,  investedAmt: 9300,  returnsAmt: 3200 },
 ]
 
 const TOGGLES = [
@@ -143,7 +164,7 @@ const SK: CSSProperties = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const CIRCUMFERENCE = 201.06 // 2 * π * 32
+const CIRCUMFERENCE = 263.9 // 2 * π * 42
 
 function formatINR(value: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -160,10 +181,15 @@ function formatShort(value: number): string {
   return `₹${Math.round(value)}`
 }
 
+function formatMilestoneDate(d: string | null): string {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function eventDotColor(ev: UpcomingEvent): string {
-  if (ev.type === 'FD_MATURITY')    return ev.urgency === 'HIGH' ? '#DC2626' : '#D97706'
-  if (ev.type === 'RD_MATURITY')    return '#D97706'
-  if (ev.type === 'RD_INSTALLMENT') return '#D97706'
+  if (ev.type === 'FD_MATURITY')      return ev.urgency === 'HIGH' ? '#DC2626' : '#D97706'
+  if (ev.type === 'RD_MATURITY')      return '#D97706'
+  if (ev.type === 'RD_INSTALLMENT')   return '#D97706'
   if (ev.type === 'EPF_CONTRIBUTION') return '#6366F1'
   return '#AAA8A0'
 }
@@ -179,16 +205,20 @@ function eventTypeLabel(ev: UpcomingEvent): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter()
+
   const [summary,        setSummary]        = useState<DashboardSummary | null>(null)
   const [snapshots,      setSnapshots]      = useState<SnapshotData | null>(null)
   const [performers,     setPerformers]     = useState<Performers | null>(null)
   const [upcoming,       setUpcoming]       = useState<UpcomingEvents | null>(null)
+  const [milestones,     setMilestones]     = useState<Milestone[]>([])
   const [loading,        setLoading]        = useState(true)
   const [activeTab,      setActiveTab]      = useState<TabKey>('1Y')
   const [snapshotToast,  setSnapshotToast]  = useState(false)
   const [takingSnapshot, setTakingSnapshot] = useState(false)
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
+  const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
 
   // Restore persisted visibility
   useEffect(() => {
@@ -206,19 +236,24 @@ export default function DashboardPage() {
     return () => document.removeEventListener('keydown', fn)
   }, [modal])
 
-  // Fetch summary, performers, upcoming on mount
+  // Fetch summary, performers, upcoming, milestones on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [summaryRes, performersRes, upcomingRes] = await Promise.all([
+        const [summaryRes, performersRes, upcomingRes, milestonesRes] = await Promise.all([
           fetch('/api/dashboard/summary'),
           fetch('/api/dashboard/performers'),
           fetch('/api/dashboard/upcoming'),
+          fetch('/api/milestones'),
         ])
         if (summaryRes.ok)    setSummary(await summaryRes.json())
         if (performersRes.ok) setPerformers(await performersRes.json())
         if (upcomingRes.ok)   setUpcoming(await upcomingRes.json())
+        if (milestonesRes.ok) {
+          const d = await milestonesRes.json() as { milestones: Milestone[] }
+          setMilestones(d.milestones)
+        }
       } catch (err) {
         console.error('Dashboard fetch error:', err)
       } finally {
@@ -266,10 +301,10 @@ export default function DashboardPage() {
   const chartData  = snapshots?.chartData ?? []
   const hasChart   = chartData.length > 0
 
-  // SVG chart paths from snapshot data
-  let pathD    = ''
-  let fillD    = ''
-  let lastPt   = { x: 900, y: 5 }
+  // SVG chart paths
+  let pathD       = ''
+  let fillD       = ''
+  let lastPt      = { x: 900, y: 5 }
   let monthLabels: string[] = []
 
   if (hasChart) {
@@ -297,7 +332,7 @@ export default function DashboardPage() {
     monthLabels = monthLabels.slice(0, 12)
   }
 
-  // Donut segments from real allocation
+  // Donut segments (r=42, circumference=263.9)
   const donutSegments = summary ? (() => {
     const { allocation: a, breakdown: b } = summary
     const fdRdPct = (a.fd ?? 0) + (a.rd ?? 0)
@@ -318,14 +353,15 @@ export default function DashboardPage() {
     })
   })() : null
 
-  // Treemap numbers from breakdown
-  const treemap = summary ? (() => {
-    const { breakdown: b, totalNetWorth: nw } = summary
-    const equity = b.stocks.value + b.mf.value
-    const debt   = b.epf.value + b.fd.value + b.rd.value
-    const intl   = b.usStocks.value
-    const p = (v: number) => nw > 0 ? Math.round((v / nw) * 100) : 0
-    return { equityPct: p(equity), equityVal: equity, debtPct: p(debt), debtVal: debt, intlPct: p(intl), intlVal: intl }
+  // Treemap from riskProfile (4-segment)
+  const treemap = summary?.riskProfile ? (() => {
+    const rp = summary.riskProfile
+    return {
+      equityPct: rp.equity.pct,        equityVal: rp.equity.value,
+      debtPct:   rp.debt.pct,          debtVal:   rp.debt.value,
+      goldPct:   rp.gold.pct,          goldVal:   rp.gold.value,
+      intlPct:   rp.international.pct, intlVal:   rp.international.value,
+    }
   })() : null
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -442,7 +478,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Chart area: empty state or real SVG */}
         {!hasChart ? (
           <div style={{ height: '130px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <Camera size={32} color="var(--color-text-muted)" />
@@ -490,22 +525,23 @@ export default function DashboardPage() {
               </div>
               {loading || !donutSegments ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  <div style={{ ...SK, width: 90, height: 90, borderRadius: '50%', flexShrink: 0 }} />
+                  <div style={{ ...SK, width: 120, height: 120, borderRadius: '50%', flexShrink: 0 }} />
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px' }}>
                     {[1, 2, 3, 4, 5].map(i => <div key={i} style={{ ...SK, height: 13, width: '80%' }} />)}
                   </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  <svg width={90} height={90} viewBox="0 0 90 90" style={{ flexShrink: 0 }}>
-                    <circle cx={45} cy={45} r={32} fill="none" stroke="var(--color-surface-raised)" strokeWidth={12} />
+                  {/* Donut: r=42, cx=60, cy=60, sw=14, circumference=263.9 */}
+                  <svg width={120} height={120} viewBox="0 0 120 120" style={{ flexShrink: 0 }}>
+                    <circle cx={60} cy={60} r={42} fill="none" stroke="var(--color-surface-raised)" strokeWidth={14} />
                     {donutSegments.map(s => (
                       <circle
-                        key={s.label} cx={45} cy={45} r={32} fill="none"
-                        stroke={s.color} strokeWidth={12}
+                        key={s.label} cx={60} cy={60} r={42} fill="none"
+                        stroke={s.color} strokeWidth={14}
                         strokeDasharray={s.dashArr}
                         strokeDashoffset={s.offset}
-                        transform="rotate(-90 45 45)"
+                        transform="rotate(-90 60 60)"
                       />
                     ))}
                   </svg>
@@ -527,7 +563,7 @@ export default function DashboardPage() {
           {vis.treemapCard && (
             <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '150ms' }}>
               <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
-                Equity · Debt · Intl
+                Equity · Debt · Gold · Intl
               </div>
               {loading || !treemap ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '68fr 32fr', gridTemplateRows: '1fr 1fr', gap: '5px', height: '168px' }}>
@@ -536,7 +572,16 @@ export default function DashboardPage() {
                   <div style={{ ...SK, borderRadius: '9px' }} />
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '68fr 32fr', gridTemplateRows: '1fr 1fr', gap: '5px', height: '168px' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `${treemap.equityPct || 60}fr ${(treemap.debtPct + treemap.goldPct + treemap.intlPct) || 40}fr`,
+                    gridTemplateRows: '1fr 1fr',
+                    gap: '5px',
+                    height: '168px',
+                  }}
+                >
+                  {/* Equity — spans full height */}
                   <div style={{ gridRow: '1 / 3', background: '#111111', borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Equity</span>
                     <div>
@@ -544,6 +589,7 @@ export default function DashboardPage() {
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>{formatShort(treemap.equityVal)}</div>
                     </div>
                   </div>
+                  {/* Debt — top right */}
                   <div style={{ background: '#FEF3C7', borderRadius: '9px', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '10px', color: '#92400E', textTransform: 'uppercase' }}>Debt</span>
                     <div>
@@ -551,12 +597,13 @@ export default function DashboardPage() {
                       <div style={{ fontSize: '11px', color: '#B45309', marginTop: '2px' }}>{formatShort(treemap.debtVal)}</div>
                     </div>
                   </div>
+                  {/* Gold + Intl — bottom right, side by side */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
                     <div style={{ background: '#FFFBEB', borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '9.5px', color: '#B45309', textTransform: 'uppercase' }}>Gold</span>
                       <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#D97706', letterSpacing: '-0.3px', lineHeight: 1 }}>0%</div>
-                        <div style={{ fontSize: '10px', color: '#B45309', marginTop: '1px' }}>₹0</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#D97706', letterSpacing: '-0.3px', lineHeight: 1 }}>{treemap.goldPct}%</div>
+                        <div style={{ fontSize: '10px', color: '#B45309', marginTop: '1px' }}>{formatShort(treemap.goldVal)}</div>
                       </div>
                     </div>
                     <div style={{ background: '#EEF2FF', borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -582,10 +629,15 @@ export default function DashboardPage() {
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Last 6 months</span>
           </div>
           <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
-                {BARS.map(b => (
-                  <div key={b.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {BARS.map((b, barIdx) => (
+                  <div
+                    key={b.month}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default' }}
+                    onMouseEnter={() => setHoveredBar({ month: b.month, investedAmt: b.investedAmt, returnsAmt: b.returnsAmt, barIndex: barIdx })}
+                    onMouseLeave={() => setHoveredBar(null)}
+                  >
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
                       <div style={{ height: b.inv, flex: 1, borderRadius: '4px 4px 0 0', background: b.now ? 'var(--color-text-primary)' : '#E8E6DE' }} />
                       <div style={{ height: b.ret, flex: 1, borderRadius: '4px 4px 0 0', background: b.now ? 'var(--color-text-secondary)' : '#D4D0C8' }} />
@@ -593,6 +645,34 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Bar hover tooltip */}
+              {hoveredBar !== null && (() => {
+                const leftPct = ((hoveredBar.barIndex + 0.5) / BARS.length) * 100
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '108px',
+                      left: `${leftPct}%`,
+                      transform: 'translateX(-50%)',
+                      background: 'var(--color-text-primary)',
+                      color: 'var(--color-surface)',
+                      borderRadius: '7px',
+                      padding: '7px 11px',
+                      fontSize: '12px',
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'none',
+                      zIndex: 10,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '3px' }}>{hoveredBar.month}</div>
+                    <div>Invested: ₹{hoveredBar.investedAmt.toLocaleString('en-IN')}</div>
+                    <div style={{ color: 'var(--color-gain)' }}>Returns: +₹{hoveredBar.returnsAmt.toLocaleString('en-IN')}</div>
+                  </div>
+                )
+              })()}
+
               <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                 {BARS.map(b => (
@@ -640,7 +720,6 @@ export default function DashboardPage() {
       {vis.performersCard && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
 
-          {/* Gainers */}
           <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '210ms' }}>
             <div style={TITLE_STYLE}>Top Performers</div>
             {loading ? (
@@ -674,7 +753,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Losers */}
           <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '240ms' }}>
             <div style={TITLE_STYLE}>Underperformers</div>
             {loading ? (
@@ -721,7 +799,7 @@ export default function DashboardPage() {
               {[1, 2, 3, 4].map(i => <div key={i} style={{ ...SK, height: 90, borderRadius: '9px' }} />)}
             </div>
           ) : !upcoming?.events?.length ? (
-            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0', gridColumn: '1 / -1' }}>
+            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0' }}>
               No upcoming events in the next 90 days
             </div>
           ) : (
@@ -730,7 +808,7 @@ export default function DashboardPage() {
                 const isUrgent = ev.urgency === 'HIGH'
                 const dot      = eventDotColor(ev)
                 const typeText = eventTypeLabel(ev)
-                const dateStr  = new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                const evDate   = new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                 return (
                   <div key={ev.id} style={{ background: isUrgent ? '#FFF5F5' : 'var(--color-surface-raised)', borderRadius: '9px', border: `0.5px solid ${isUrgent ? '#FECDD3' : 'var(--color-border)'}`, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
@@ -746,7 +824,7 @@ export default function DashboardPage() {
                       {formatINR(ev.amount)}
                     </div>
                     <div style={{ fontSize: '12px', fontWeight: 600, color: isUrgent ? '#DC2626' : 'var(--color-text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
-                      {dateStr}
+                      {evDate}
                     </div>
                   </div>
                 )
@@ -756,44 +834,76 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── ROW 7: Milestones (static) ── */}
+      {/* ── ROW 7: Milestones ── */}
       {vis.milestonesCard && (
         <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '0', animationDelay: '300ms' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ ...TITLE_STYLE, marginBottom: 0 }}>Milestones</div>
             <button
-              onClick={() => console.log('add goal')}
+              onClick={() => router.push('/settings')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontFamily: 'inherit' }}
             >
               <Plus size={13} color="var(--color-text-muted)" />
               <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Add goal</span>
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {MILESTONES.map((m, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, background: m.achieved ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', border: m.achieved ? 'none' : '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {m.achieved
-                        ? <Check size={11} color="var(--color-surface)" strokeWidth={2.5} />
-                        : <Flag  size={11} color="var(--color-text-muted)" />}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.title}</div>
-                      <div style={{ fontSize: '11px', color: m.achieved ? 'var(--color-gain)' : 'var(--color-text-muted)', marginTop: '1px' }}>{m.sub}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0, marginLeft: '16px', fontVariantNumeric: 'tabular-nums' }}>
-                    {m.target}
-                  </div>
+
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[1, 2].map(i => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ ...SK, height: 14, width: '55%' }} />
+                  <div style={{ ...SK, height: 5, borderRadius: '3px' }} />
                 </div>
-                <div style={{ height: '5px', background: 'var(--color-surface-raised)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${m.progress}%`, background: 'var(--color-text-primary)', borderRadius: '3px', transition: 'width 600ms ease' }} />
-                </div>
+              ))}
+            </div>
+          ) : milestones.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <Flag size={24} color="var(--color-text-muted)" />
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                No goals set ·{' '}
+                <button
+                  onClick={() => router.push('/settings')}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: '13px', fontFamily: 'inherit', textDecoration: 'underline' }}
+                >
+                  Add milestones in Settings
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {milestones.map(m => {
+                const sub = m.isAchieved
+                  ? `Achieved · ${formatMilestoneDate(m.achievedDate)}`
+                  : m.progressPct > 0
+                    ? `${formatShort(m.amountAway)} away · ${m.progressPct}% there`
+                    : 'Not started yet'
+                return (
+                  <div key={m.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, background: m.isAchieved ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', border: m.isAchieved ? 'none' : '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {m.isAchieved
+                            ? <Check size={11} color="var(--color-surface)" strokeWidth={2.5} />
+                            : <Flag  size={11} color="var(--color-text-muted)" />}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.title}</div>
+                          <div style={{ fontSize: '11px', color: m.isAchieved ? 'var(--color-gain)' : 'var(--color-text-muted)', marginTop: '1px' }}>{sub}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0, marginLeft: '16px', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatShort(m.targetAmount)}
+                      </div>
+                    </div>
+                    <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? 'var(--color-gain)' : 'var(--color-text-primary)', borderRadius: '2px', transition: 'width 600ms ease' }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
