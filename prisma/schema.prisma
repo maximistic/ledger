@@ -231,3 +231,20 @@ model USStockTransaction {
   @@index([stockId])
   @@index([date])
 }
+
+model Snapshot {
+  id            String   @id @default(cuid())
+  date          DateTime @unique
+  totalNetWorth Float
+  stocksValue   Float    @default(0)
+  mfValue       Float    @default(0)
+  epfValue      Float    @default(0)
+  fdValue       Float    @default(0)
+  rdValue       Float    @default(0)
+  usStocksValue Float    @default(0)
+  investedValue Float    @default(0)
+  source        String   @default("AUTO")
+  createdAt     DateTime @default(now())
+
+  @@index([date])
+}
