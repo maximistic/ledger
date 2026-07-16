@@ -80,7 +80,7 @@ export default function XIRRSection() {
           </div>
         ) : (
           <>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.7px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
               Overall XIRR
             </div>
             <div style={{ fontSize: '44px', fontWeight: 700, letterSpacing: '-1.5px', lineHeight: 1, color: xirrColor(data?.overall ?? null), fontVariantNumeric: 'tabular-nums', marginBottom: '8px' }}>
@@ -108,7 +108,7 @@ export default function XIRRSection() {
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
                     {label}
                   </div>
                   <div style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px', color, fontVariantNumeric: 'tabular-nums', marginBottom: '3px' }}>
@@ -126,7 +126,7 @@ export default function XIRRSection() {
 
       {/* About XIRR note */}
       <div style={{ background: 'var(--color-surface-raised)', border: '0.5px solid var(--color-border)', borderRadius: '10px', padding: '14px 18px' }}>
-        <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+        <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
           About XIRR
         </div>
         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
