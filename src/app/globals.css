@@ -374,3 +374,113 @@ html {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
+
+/* ------------------------------------------------------------
+   RESPONSIVE — Mobile (≤768px) and Tablet (769–1024px)
+   ------------------------------------------------------------ */
+
+/* ── Scrollbar hiding ───────────────────────────────────────── */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Bottom tab bar — hidden by default, shown on mobile ────── */
+.bottom-tab-bar { display: none; }
+
+/* ── Mobile chip strips — hidden by default, shown on mobile ── */
+.assets-mobile-strip,
+.settings-mobile-tabs { display: none; }
+
+/* ── Table scroll wrapper with fade gradient ─────────────────── */
+.table-scroll-wrapper {
+  position: relative;
+  overflow-x: auto;
+}
+.table-scroll-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 40px;
+  background: linear-gradient(to right, transparent, var(--color-surface));
+  pointer-events: none;
+  border-radius: 0 10px 10px 0;
+}
+
+/* ── Mobile: ≤768px ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Nav: reveal bottom tab bar */
+  .bottom-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 56px;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--nav-bg);
+    border-top: 0.5px solid var(--nav-border);
+    z-index: 100;
+    align-items: stretch;
+  }
+
+  /* Nav: hide desktop links + icon buttons */
+  .nav-links-desktop,
+  .nav-icons-desktop {
+    display: none !important;
+  }
+
+  /* Layout: 72px bottom padding clears the tab bar */
+  .main-content-wrapper {
+    padding: 16px 16px 72px 16px !important;
+  }
+
+  /* Assets / Settings: hide left rails on mobile */
+  .assets-rail,
+  .settings-rail {
+    display: none !important;
+  }
+
+  /* Assets / Settings: show mobile chip strip */
+  .assets-mobile-strip,
+  .settings-mobile-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 12px;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Dashboard: collapse 2-col grids to 1-col */
+  .dashboard-two-col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Dashboard cashflow: hide right stats panel + divider */
+  .cashflow-stats,
+  .cashflow-divider {
+    display: none !important;
+  }
+
+  /* Dashboard upcoming: 4-col → 2-col */
+  .upcoming-4col {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Dialogs: full-width on mobile */
+  .dialog-panel {
+    max-width: calc(100vw - 32px) !important;
+    width: calc(100vw - 32px) !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* ── Tablet: 769–1024px ──────────────────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .assets-rail,
+  .settings-rail {
+    width: 150px !important;
+  }
+}

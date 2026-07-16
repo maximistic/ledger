@@ -539,10 +539,40 @@ export default function AssetsPage() {
   const allSold = stocks.length === 0 && totalIncludingZero > 0
 
   return (
+    <>
+      {/* Mobile tab strip — shown only on mobile (≤768px) */}
+      <div className="assets-mobile-strip hide-scrollbar">
+        {SECTION_ORDER.filter(key => railVisibility[key]).map(key => {
+          const active = activeTab === key
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              style={{
+                flexShrink: 0,
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontFamily: 'inherit',
+                fontWeight: active ? 600 : 400,
+                border: active ? '1.5px solid var(--color-text-primary)' : '1px solid var(--color-border)',
+                background: active ? 'var(--color-text-primary)' : 'var(--color-surface)',
+                color: active ? 'var(--color-surface)' : 'var(--color-text-muted)',
+                cursor: 'pointer',
+                transition: 'all 140ms ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {SECTION_LABELS[key]}
+            </button>
+          )
+        })}
+      </div>
+
     <div style={{ display: 'flex', gap: '16px' }}>
 
       {/* ── Left rail ───────────────────────────────────────────────────────── */}
-      <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
         {editingRail ? (
           /* ── Edit mode: section chips ─────────────────────────────────────── */
@@ -964,6 +994,7 @@ export default function AssetsPage() {
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
+    </>
   )
 }
 

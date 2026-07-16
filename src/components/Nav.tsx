@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Moon, Sun, Settings } from 'lucide-react'
+import { Moon, Sun, Settings, LayoutDashboard, Briefcase } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 
 const navLinks = [
@@ -72,8 +72,8 @@ export default function Nav() {
           Ledger
         </Link>
 
-        {/* Nav links */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+        {/* Nav links — hidden on mobile */}
+        <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center' }}>
           {navLinks.map(({ href, label }) => {
             const active = isActive(href)
             return (
@@ -102,8 +102,8 @@ export default function Nav() {
           })}
         </div>
 
-        {/* Right — icon buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Right — icon buttons — hidden on mobile */}
+        <div className="nav-icons-desktop" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={() => router.push('/settings')} style={iconButtonStyle}>
             <Settings size={16} />
           </button>
@@ -111,6 +111,56 @@ export default function Nav() {
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
         </div>
+      </div>
+
+      {/* Mobile bottom tab bar */}
+      <div className="bottom-tab-bar">
+        {[
+          { href: '/',         label: 'Dashboard', Icon: LayoutDashboard, active: pathname === '/' },
+          { href: '/assets',   label: 'Assets',    Icon: Briefcase,       active: pathname.startsWith('/assets') },
+          { href: '/settings', label: 'Settings',  Icon: Settings,        active: pathname.startsWith('/settings') },
+        ].map(({ href, label, Icon, active }) => (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              color: active ? 'var(--nav-text-active)' : 'var(--nav-text)',
+              textDecoration: 'none',
+              fontSize: '10px',
+              fontWeight: active ? 600 : 400,
+              transition: 'color 140ms ease',
+            }}
+          >
+            <Icon size={20} />
+            <span>{label}</span>
+          </Link>
+        ))}
+        <button
+          onClick={toggleTheme}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '3px',
+            color: 'var(--nav-text)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '10px',
+            fontWeight: 400,
+          }}
+        >
+          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          <span>Theme</span>
+        </button>
       </div>
     </nav>
   )

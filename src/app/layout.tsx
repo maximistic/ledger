@@ -44,6 +44,7 @@ export default function RootLayout({
             }}
           >
             <div
+              className="main-content-wrapper"
               style={{
                 maxWidth: "1280px",
                 margin: "0 auto",

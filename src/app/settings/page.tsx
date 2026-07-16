@@ -615,10 +615,46 @@ export default function SettingsPage() {
 
   return (
     <>
+      {/* Mobile tab strip — shown only on mobile (≤768px) */}
+      <div className="settings-mobile-tabs hide-scrollbar">
+        {RAIL.map(({ key, label }) => {
+          const active    = activeSection === key
+          const isDanger  = key === 'danger'
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key)}
+              style={{
+                flexShrink: 0,
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontFamily: 'inherit',
+                fontWeight: active ? 600 : 400,
+                border: active
+                  ? `1.5px solid ${isDanger ? '#DC2626' : 'var(--color-text-primary)'}`
+                  : '1px solid var(--color-border)',
+                background: active
+                  ? (isDanger ? '#DC2626' : 'var(--color-text-primary)')
+                  : 'var(--color-surface)',
+                color: active
+                  ? 'var(--color-surface)'
+                  : (isDanger ? '#DC2626' : 'var(--color-text-muted)'),
+                cursor: 'pointer',
+                transition: 'all 140ms ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label.charAt(0) + label.slice(1).toLowerCase()}
+            </button>
+          )
+        })}
+      </div>
+
       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
 
         {/* Left rail */}
-        <div style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div className="settings-rail" style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {RAIL.map(({ key, Icon, label, sub }) => {
             const active   = activeSection === key
             const isDanger = key === 'danger'

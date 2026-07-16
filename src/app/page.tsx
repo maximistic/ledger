@@ -532,7 +532,7 @@ export default function DashboardPage() {
 
       {/* ── ROW 3: Allocation + Treemap ── */}
       {(vis.allocationCard || vis.treemapCard) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+        <div className="dashboard-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
 
           {vis.allocationCard && (
             <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '120ms' }}>
@@ -680,8 +680,8 @@ export default function DashboardPage() {
                   {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ ...SK, flex: 1, height: '11px' }} />)}
                 </div>
               </div>
-              <div style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
-              <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
+              <div className="cashflow-divider" style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
+              <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
                 {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: '52px', borderRadius: '8px' }} />)}
               </div>
             </div>
@@ -734,8 +734,8 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 </div>
-                <div style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
-                <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
+                <div className="cashflow-divider" style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
+                <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
                   <div>
                     <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.currentMonthInvested)}</div>
@@ -762,7 +762,7 @@ export default function DashboardPage() {
 
       {/* ── ROW 5: Performers ── */}
       {vis.performersCard && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+        <div className="dashboard-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
 
           <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '210ms' }}>
             <div style={TITLE_STYLE}>Top Performers</div>
@@ -839,7 +839,7 @@ export default function DashboardPage() {
             <div style={TITLE_STYLE}>Upcoming</div>
           </div>
           {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+            <div className="upcoming-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               {[1, 2, 3, 4].map(i => <div key={i} style={{ ...SK, height: 90, borderRadius: '9px' }} />)}
             </div>
           ) : !upcoming?.events?.length ? (
@@ -847,7 +847,7 @@ export default function DashboardPage() {
               No upcoming events in the next 90 days
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+            <div className="upcoming-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               {upcoming.events.slice(0, 4).map(ev => {
                 const isUrgent = ev.urgency === 'HIGH'
                 const dot      = eventDotColor(ev)
