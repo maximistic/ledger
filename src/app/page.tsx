@@ -224,6 +224,7 @@ export default function DashboardPage() {
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
+  const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
 
   // Restore persisted visibility
   useEffect(() => {
@@ -246,12 +247,13 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [summaryRes, performersRes, upcomingRes, milestonesRes, cashflowRes] = await Promise.all([
+        const [summaryRes, performersRes, upcomingRes, milestonesRes, cashflowRes, xirrRes] = await Promise.all([
           fetch('/api/dashboard/summary'),
           fetch('/api/dashboard/performers'),
           fetch('/api/dashboard/upcoming'),
           fetch('/api/milestones'),
           fetch('/api/dashboard/cashflow?months=6'),
+          fetch('/api/reports/xirr'),
         ])
         if (summaryRes.ok)    setSummary(await summaryRes.json())
         if (performersRes.ok) setPerformers(await performersRes.json())
@@ -261,6 +263,10 @@ export default function DashboardPage() {
           setMilestones(d.milestones)
         }
         if (cashflowRes.ok) setCashflow(await cashflowRes.json())
+        if (xirrRes.ok) {
+          const xd = await xirrRes.json() as { overall: number | null }
+          setXirrOverall(xd.overall)
+        }
       } catch (err) {
         console.error('Dashboard fetch error:', err)
       } finally {
@@ -415,7 +421,7 @@ export default function DashboardPage() {
             )}
             {!loading && (
               <span className="dashboard-header-meta" style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Invested {formatINR(summary?.totalInvested ?? 0)}
+                Invested {formatINR(summary?.totalInvested ?? 0)}{xirrOverall !== null ? ` · XIRR ${xirrOverall >= 0 ? '+' : ''}${xirrOverall.toFixed(2)}%` : ''}
               </span>
             )}
           </div>
