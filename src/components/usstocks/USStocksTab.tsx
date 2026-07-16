@@ -84,7 +84,7 @@ const GRID = '2.2fr 0.6fr 1fr 1fr 0.9fr 0.9fr 1fr'
 
 const hCell: React.CSSProperties = {
   fontSize: '10.5px', color: 'var(--color-text-muted)',
-  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500,
+  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600,
 }
 
 function SkeletonTable() {

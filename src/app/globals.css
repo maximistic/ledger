@@ -101,7 +101,7 @@ body {
   /* Text */
   --color-text-primary:    #111111;   /* headings, values, important */
   --color-text-secondary:  #555555;   /* body text, descriptions */
-  --color-text-muted:      #AAA8A0;   /* labels, captions, placeholders */
+  --color-text-muted:      #6E6A62;   /* labels, captions, placeholders */
   --color-text-disabled:   #CCC8BE;   /* disabled states */
 
   /* Semantic — gains/losses (finance specific) */
@@ -174,7 +174,7 @@ body {
   /* Text */
   --color-text-primary:    #F0EDE4;   /* warm off-white */
   --color-text-secondary:  #9A9590;   /* body text */
-  --color-text-muted:      #4A4740;   /* labels, captions */
+  --color-text-muted:      #8A8680;   /* labels, captions */
   --color-text-disabled:   #3A3733;   /* disabled */
 
   /* Semantic */
@@ -320,6 +320,19 @@ body {
 /* Surface backgrounds */
 .bg-surface        { background-color: var(--color-surface); }
 .bg-surface-raised { background-color: var(--color-surface-raised); }
+
+/* Card section title labels (11px uppercase) */
+.card-title {
+  font-weight: 600;
+}
+
+/* Milestone progress bar fill — dark mode shows green */
+.milestone-bar-fill {
+  background: var(--color-text-primary);
+}
+.dark .milestone-bar-fill {
+  background: var(--color-gain);
+}
 
 /* Focus ring — consistent across all interactive elements */
 :focus-visible {

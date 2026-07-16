@@ -238,7 +238,10 @@ export default function MilestonesSection({ onLoaded }: Props) {
                   </div>
                 </button>
                 <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden', marginTop: '7px' }}>
-                  <div style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? '#16A34A' : 'var(--color-text-primary)', borderRadius: '2px', transition: 'width 600ms ease' }} />
+                  <div
+                    className={m.isAchieved ? undefined : 'milestone-bar-fill'}
+                    style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? 'var(--color-gain)' : undefined, borderRadius: '2px', transition: 'width 600ms ease' }}
+                  />
                 </div>
               </div>
 

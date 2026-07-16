@@ -134,7 +134,7 @@ export const inputStyle: React.CSSProperties = {
 
 const hCell: React.CSSProperties = {
   fontSize: '10.5px', color: 'var(--color-text-muted)',
-  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500,
+  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600,
 }
 
 const GRID = '2fr 1fr 1fr 1fr 1fr 1fr'

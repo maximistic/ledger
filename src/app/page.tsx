@@ -157,7 +157,7 @@ const TITLE_STYLE: CSSProperties = {
   textTransform: 'uppercase',
   color: 'var(--color-text-muted)',
   letterSpacing: '0.7px',
-  fontWeight: 500,
+  fontWeight: 600,
   marginBottom: '14px',
 }
 
@@ -393,7 +393,7 @@ export default function DashboardPage() {
       {/* ── ROW 1: Header ── */}
       <div className="dashboard-header-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.8px', marginBottom: '4px' }}>
+          <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.8px', fontWeight: 600, marginBottom: '4px' }}>
             Net worth · {monthYear}
           </div>
 
@@ -461,7 +461,7 @@ export default function DashboardPage() {
       <div className="dashboard-card" style={{ ...card, padding: '20px 24px', marginBottom: '14px', animationDelay: '60ms' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '3px' }}>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', fontWeight: 600, marginBottom: '3px' }}>
               Net Worth Trend
             </div>
             <div style={{ fontSize: '13px' }}>
@@ -542,7 +542,7 @@ export default function DashboardPage() {
 
           {vis.allocationCard && (
             <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '120ms' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', fontWeight: 600, marginBottom: '14px' }}>
                 Asset Allocation
               </div>
               {loading || !pieSegments ? (
@@ -577,7 +577,7 @@ export default function DashboardPage() {
 
           {vis.treemapCard && (
             <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '150ms' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', fontWeight: 600, marginBottom: '14px' }}>
                 Equity · Debt · Gold · Intl
               </div>
               {loading || !treemapSegments ? (
@@ -668,7 +668,7 @@ export default function DashboardPage() {
       {vis.cashflowCard && (
         <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '14px', animationDelay: '180ms' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px' }}>Monthly Cashflow</div>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', fontWeight: 600 }}>Monthly Cashflow</div>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Last 6 months</span>
           </div>
           {loading || !cashflow ? (
@@ -743,19 +743,19 @@ export default function DashboardPage() {
                 <div className="cashflow-divider" style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
                 <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
                   <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '3px' }}>This month</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.currentMonthInvested)}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>invested</div>
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>Returns</div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '3px' }}>Returns</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+₹0</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>snapshot-based, coming soon</div>
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Total</div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '3px' }}>6M Total</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.totalInvested)}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>deployed over 6 months</div>
                   </div>
@@ -947,7 +947,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? 'var(--color-gain)' : 'var(--color-text-primary)', borderRadius: '2px', transition: 'width 600ms ease' }} />
+                      <div
+                        className={m.isAchieved ? undefined : 'milestone-bar-fill'}
+                        style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? 'var(--color-gain)' : undefined, borderRadius: '2px', transition: 'width 600ms ease' }}
+                      />
                     </div>
                   </div>
                 )
