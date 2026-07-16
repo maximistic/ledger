@@ -225,6 +225,61 @@ async function processFDs(): Promise<{ processed: number; errors: string[] }> {
   return { processed, errors }
 }
 
+async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; error?: string }> {
+  try {
+    const today      = new Date()
+    const dayOfWeek  = today.getDay() // 0 = Sunday
+
+    const lastSnapshot = await prisma.snapshot.findFirst({ orderBy: { date: 'desc' } })
+
+    let shouldCreate = !lastSnapshot
+    if (lastSnapshot) {
+      const daysSinceLast = Math.floor(
+        (today.getTime() - lastSnapshot.date.getTime()) / (1000 * 60 * 60 * 24)
+      )
+      shouldCreate = dayOfWeek === 0 || daysSinceLast >= 7
+    }
+
+    if (!shouldCreate) return { created: false, skipped: true }
+
+    const [stocks, mfs, epfAccounts, fds, rds, usStocks] = await Promise.all([
+      prisma.stock.findMany(),
+      prisma.mutualFund.findMany(),
+      prisma.ePFAccount.findMany(),
+      prisma.fDAccount.findMany(),
+      prisma.rDAccount.findMany(),
+      prisma.uSStock.findMany(),
+    ])
+
+    const stocksValue   = stocks.reduce((s, x) => s + x.currentValue, 0)
+    const mfValue       = mfs.reduce((s, x) => s + x.currentValue, 0)
+    const epfValue      = epfAccounts.reduce((s, x) => s + x.employeeBalance + x.employerBalance + x.pensionBalance, 0)
+    const fdValue       = fds.reduce((s, x) => s + x.currentValue, 0)
+    const rdValue       = rds.reduce((s, x) => s + x.currentValue, 0)
+    const usStocksValue = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
+    const totalNetWorth = stocksValue + mfValue + epfValue + fdValue + rdValue + usStocksValue
+
+    const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
+    const mfInvested       = mfs.reduce((s, x) => s + x.investedValue, 0)
+    const fdInvested       = fds.reduce((s, x) => s + x.principal, 0)
+    const rdInvested       = rds.reduce((s, x) => s + x.totalInvested, 0)
+    const usStocksInvested = usStocks.reduce((s, x) => s + x.investedValueINR, 0)
+    const investedValue    = stocksInvested + mfInvested + epfValue + fdInvested + rdInvested + usStocksInvested
+
+    const dateKey = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+    await prisma.snapshot.upsert({
+      where:  { date: dateKey },
+      update: { totalNetWorth, stocksValue, mfValue, epfValue, fdValue, rdValue, usStocksValue, investedValue, source: 'AUTO' },
+      create: { date: dateKey, totalNetWorth, stocksValue, mfValue, epfValue, fdValue, rdValue, usStocksValue, investedValue, source: 'AUTO' },
+    })
+
+    return { created: true, skipped: false }
+  } catch (err) {
+    return { created: false, skipped: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 async function processUSStocks(): Promise<{ updated: number; failed: number; skipped: number; exchangeRate: number | null }> {
   let updated  = 0
   let failed   = 0
@@ -276,7 +331,9 @@ export async function GET() {
       processFDs(),
       processUSStocks(),
     ])
-    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks })
+    // Snapshot runs after price updates so it captures the latest values
+    const snapshot = await processSnapshot()
+    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks, snapshot })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -292,7 +349,8 @@ export async function POST() {
       processFDs(),
       processUSStocks(),
     ])
-    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks })
+    const snapshot = await processSnapshot()
+    return NextResponse.json({ ok: true, sips, epf, rds, fds, usStocks, snapshot })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
