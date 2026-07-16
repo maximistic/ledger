@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import CashflowSection from '@/components/reports/CashflowSection'
+import { useState, useCallback } from 'react'
+import CashflowSection   from '@/components/reports/CashflowSection'
 import MilestonesSection from '@/components/reports/MilestonesSection'
-import SnapshotsSection from '@/components/reports/SnapshotsSection'
-import XIRRSection from '@/components/reports/XIRRSection'
+import SnapshotsSection  from '@/components/reports/SnapshotsSection'
+import XIRRSection       from '@/components/reports/XIRRSection'
 
 type ReportSection = 'cashflow' | 'milestones' | 'snapshots' | 'xirr'
 
-const RAIL: Array<{ key: ReportSection; label: string; sub: string }> = [
+const BASE_RAIL: Array<{ key: ReportSection; label: string; sub: string }> = [
   { key: 'cashflow',   label: 'CASHFLOW',   sub: 'Monthly analysis' },
   { key: 'milestones', label: 'MILESTONES', sub: 'Track your goals' },
   { key: 'snapshots',  label: 'SNAPSHOTS',  sub: 'Net worth history' },
@@ -24,6 +24,21 @@ const SECTION_META: Record<ReportSection, { title: string; subtitle: string }> =
 
 export default function ReportsPage() {
   const [activeSection, setActiveSection] = useState<ReportSection>('cashflow')
+  const [subOverrides,  setSubOverrides]  = useState<Partial<Record<ReportSection, string>>>({})
+
+  const onMilestoneLoaded = useCallback((sub: string) => {
+    setSubOverrides(prev => ({ ...prev, milestones: sub }))
+  }, [])
+
+  const onSnapshotLoaded = useCallback((sub: string) => {
+    setSubOverrides(prev => ({ ...prev, snapshots: sub }))
+  }, [])
+
+  const RAIL = BASE_RAIL.map(item => ({
+    ...item,
+    sub: subOverrides[item.key] ?? item.sub,
+  }))
+
   const { title, subtitle } = SECTION_META[activeSection]
 
   return (
@@ -98,8 +113,8 @@ export default function ReportsPage() {
           </div>
 
           {activeSection === 'cashflow'   && <CashflowSection />}
-          {activeSection === 'milestones' && <MilestonesSection />}
-          {activeSection === 'snapshots'  && <SnapshotsSection />}
+          {activeSection === 'milestones' && <MilestonesSection onLoaded={onMilestoneLoaded} />}
+          {activeSection === 'snapshots'  && <SnapshotsSection  onLoaded={onSnapshotLoaded}  />}
           {activeSection === 'xirr'       && <XIRRSection />}
         </div>
       </div>
