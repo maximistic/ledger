@@ -193,7 +193,7 @@ export default function SnapshotsSection({ onLoaded }: Props) {
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
             {(['Date', 'Net Worth', 'Invested', 'Source', ''] as const).map((h, i) => (
-              <div key={h || `col-${i}`} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: i >= 4 ? 'right' : 'left' }}>
+              <div key={h || `col-${i}`} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 600, textAlign: i >= 4 ? 'right' : 'left' }}>
                 {h}
               </div>
             ))}
