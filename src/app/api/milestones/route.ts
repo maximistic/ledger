@@ -1,52 +1,55 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-async function getCurrentValueForAsset(targetAsset: string | null): Promise<number> {
-  switch (targetAsset) {
-    case 'stocks': {
-      const stocks = await prisma.stock.findMany({ select: { currentValue: true } })
-      return stocks.reduce((s, x) => s + x.currentValue, 0)
-    }
-    case 'mf': {
-      const mfs = await prisma.mutualFund.findMany({ select: { currentValue: true } })
-      return mfs.reduce((s, x) => s + x.currentValue, 0)
-    }
-    case 'epf': {
-      const epfs = await prisma.ePFAccount.findMany({ select: { employeeBalance: true, employerBalance: true, pensionBalance: true } })
-      return epfs.reduce((s, x) => s + x.employeeBalance + x.employerBalance + x.pensionBalance, 0)
-    }
-    case 'fd': {
-      const fds = await prisma.fDAccount.findMany({ select: { currentValue: true } })
-      return fds.reduce((s, x) => s + x.currentValue, 0)
-    }
-    case 'rd': {
-      const rds = await prisma.rDAccount.findMany({ select: { currentValue: true } })
-      return rds.reduce((s, x) => s + x.currentValue, 0)
-    }
-    case 'us': {
-      const us = await prisma.uSStock.findMany({ select: { currentValueINR: true } })
-      return us.reduce((s, x) => s + x.currentValueINR, 0)
-    }
-    default: {
-      // 'total' or null → sum everything
-      const [stocks, mfs, epfs, fds, rds, us] = await Promise.all([
-        prisma.stock.findMany({ select: { currentValue: true } }),
-        prisma.mutualFund.findMany({ select: { currentValue: true } }),
-        prisma.ePFAccount.findMany({ select: { employeeBalance: true, employerBalance: true, pensionBalance: true } }),
-        prisma.fDAccount.findMany({ select: { currentValue: true } }),
-        prisma.rDAccount.findMany({ select: { currentValue: true } }),
-        prisma.uSStock.findMany({ select: { currentValueINR: true } }),
-      ])
-      return (
-        stocks.reduce((s, x) => s + x.currentValue, 0) +
-        mfs.reduce((s, x) => s + x.currentValue, 0) +
-        epfs.reduce((s, x) => s + x.employeeBalance + x.employerBalance + x.pensionBalance, 0) +
-        fds.reduce((s, x) => s + x.currentValue, 0) +
-        rds.reduce((s, x) => s + x.currentValue, 0) +
-        us.reduce((s, x) => s + x.currentValueINR, 0)
-      )
-    }
+const getCurrentValue = async (targetAsset: string | null): Promise<number> => {
+  if (!targetAsset || targetAsset === 'total') {
+    const [stocks, mfs, epf, fds, rds, usStocks] = await Promise.all([
+      prisma.stock.findMany({ where: { quantity: { gt: 0 } } }),
+      prisma.mutualFund.findMany(),
+      prisma.ePFAccount.findFirst(),
+      prisma.fDAccount.findMany(),
+      prisma.rDAccount.findMany(),
+      prisma.uSStock.findMany({ where: { quantity: { gt: 0 } } }),
+    ])
+    const stocksVal = stocks.reduce((s, x) => s + x.currentValue, 0)
+    const mfVal     = mfs.reduce((s, x) => s + x.currentValue, 0)
+    const epfVal    = epf ? epf.employeeBalance + epf.employerBalance + epf.pensionBalance : 0
+    const fdVal     = fds.reduce((s, x) => s + x.currentValue, 0)
+    const rdVal     = rds.reduce((s, x) => s + x.currentValue, 0)
+    const usVal     = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
+    return stocksVal + mfVal + epfVal + fdVal + rdVal + usVal
   }
+
+  if (targetAsset === 'stocks') {
+    const stocks = await prisma.stock.findMany({ where: { quantity: { gt: 0 } } })
+    return stocks.reduce((s, x) => s + x.currentValue, 0)
+  }
+
+  if (targetAsset === 'mf') {
+    const mfs = await prisma.mutualFund.findMany()
+    return mfs.reduce((s, x) => s + x.currentValue, 0)
+  }
+
+  if (targetAsset === 'epf') {
+    const epf = await prisma.ePFAccount.findFirst()
+    return epf ? epf.employeeBalance + epf.employerBalance + epf.pensionBalance : 0
+  }
+
+  if (targetAsset === 'fd') {
+    const fds = await prisma.fDAccount.findMany()
+    const rds = await prisma.rDAccount.findMany()
+    return (
+      fds.reduce((s, x) => s + x.currentValue, 0) +
+      rds.reduce((s, x) => s + x.currentValue, 0)
+    )
+  }
+
+  if (targetAsset === 'us') {
+    const usStocks = await prisma.uSStock.findMany({ where: { quantity: { gt: 0 } } })
+    return usStocks.reduce((s, x) => s + x.currentValueINR, 0)
+  }
+
+  return 0
 }
 
 export async function GET() {
@@ -56,25 +59,26 @@ export async function GET() {
     })
 
     const milestones = await Promise.all(
-      raw.map(async m => {
-        const currentValue  = await getCurrentValueForAsset(m.targetAsset)
-        const progress      = Math.min(currentValue / m.targetAmount, 1)
-        const progressPct   = Math.round(progress * 100)
-        const amountAway    = Math.max(m.targetAmount - currentValue, 0)
+      raw.map(async milestone => {
+        const currentValue = await getCurrentValue(milestone.targetAsset)
+        const progress     = milestone.targetAmount > 0 ? currentValue / milestone.targetAmount : 0
+        const progressPct  = Math.min(Math.round(progress * 100), 100)
+        const amountAway   = Math.max(milestone.targetAmount - currentValue, 0)
 
-        let { isAchieved, achievedDate } = m
+        let { isAchieved, achievedDate } = milestone
 
-        if (!isAchieved && progressPct >= 100) {
+        // Auto-achieve only — never auto-unachieve
+        if (!isAchieved && currentValue >= milestone.targetAmount) {
           const today = new Date()
           await prisma.milestone.update({
-            where: { id: m.id },
-            data: { isAchieved: true, achievedDate: today },
+            where: { id: milestone.id },
+            data:  { isAchieved: true, achievedDate: today },
           })
           isAchieved   = true
           achievedDate = today
         }
 
-        return { ...m, isAchieved, achievedDate, currentValue, progress, progressPct, amountAway }
+        return { ...milestone, isAchieved, achievedDate, currentValue, progressPct, amountAway }
       })
     )
 
@@ -99,9 +103,9 @@ export async function POST(req: Request) {
 
     const milestone = await prisma.milestone.create({
       data: {
-        title:        title.trim(),
+        title:       title.trim(),
         targetAmount,
-        targetAsset:  targetAsset ?? null,
+        targetAsset: targetAsset ?? null,
       },
     })
 

@@ -108,6 +108,19 @@ interface HoveredBar {
   barIndex: number
 }
 
+interface CashflowMonth {
+  label: string
+  invested: number
+  returns: number
+  isCurrentMonth: boolean
+}
+
+interface CashflowData {
+  months: CashflowMonth[]
+  totalInvested: number
+  currentMonthInvested: number
+}
+
 // ── Static data ───────────────────────────────────────────────────────────────
 
 const DEFAULT_VIS: Visibility = {
@@ -120,14 +133,6 @@ const DEFAULT_VIS: Visibility = {
   milestonesCard: true,
 }
 
-const BARS = [
-  { month: 'Feb', inv: 52, ret: 30, now: false, investedAmt: 9300,  returnsAmt: 2800 },
-  { month: 'Mar', inv: 58, ret: 40, now: false, investedAmt: 10500, returnsAmt: 4200 },
-  { month: 'Apr', inv: 52, ret: 24, now: false, investedAmt: 9300,  returnsAmt: 2100 },
-  { month: 'May', inv: 52, ret: 36, now: false, investedAmt: 9300,  returnsAmt: 3500 },
-  { month: 'Jun', inv: 52, ret: 44, now: false, investedAmt: 9300,  returnsAmt: 4800 },
-  { month: 'Jul', inv: 52, ret: 36, now: true,  investedAmt: 9300,  returnsAmt: 3200 },
-]
 
 const TOGGLES = [
   { key: 'trendCard'      as const, label: 'Net worth trend',         locked: true  },
@@ -218,6 +223,7 @@ export default function DashboardPage() {
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
+  const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
 
   // Restore persisted visibility
   useEffect(() => {
@@ -240,11 +246,12 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [summaryRes, performersRes, upcomingRes, milestonesRes] = await Promise.all([
+        const [summaryRes, performersRes, upcomingRes, milestonesRes, cashflowRes] = await Promise.all([
           fetch('/api/dashboard/summary'),
           fetch('/api/dashboard/performers'),
           fetch('/api/dashboard/upcoming'),
           fetch('/api/milestones'),
+          fetch('/api/dashboard/cashflow?months=6'),
         ])
         if (summaryRes.ok)    setSummary(await summaryRes.json())
         if (performersRes.ok) setPerformers(await performersRes.json())
@@ -253,6 +260,7 @@ export default function DashboardPage() {
           const d = await milestonesRes.json() as { milestones: Milestone[] }
           setMilestones(d.milestones)
         }
+        if (cashflowRes.ok) setCashflow(await cashflowRes.json())
       } catch (err) {
         console.error('Dashboard fetch error:', err)
       } finally {
@@ -357,15 +365,19 @@ export default function DashboardPage() {
     })
   })() : null
 
-  // Treemap from riskProfile (4-segment)
-  const treemap = summary?.riskProfile ? (() => {
+  // Treemap segments sorted by pct (largest first, zero-pct filtered out)
+  const treemapSegments = summary?.riskProfile ? (() => {
     const rp = summary.riskProfile
-    return {
-      equityPct: rp.equity.pct,        equityVal: rp.equity.value,
-      debtPct:   rp.debt.pct,          debtVal:   rp.debt.value,
-      goldPct:   rp.gold.pct,          goldVal:   rp.gold.value,
-      intlPct:   rp.international.pct, intlVal:   rp.international.value,
-    }
+    const DEFS = [
+      { key: 'equity'        as const, label: 'EQUITY', bg: '#111',    textColor: 'rgba(255,255,255,0.9)', labelColor: 'rgba(255,255,255,0.45)' },
+      { key: 'debt'          as const, label: 'DEBT',   bg: '#FEF3C7', textColor: '#92400E',               labelColor: '#92400E' },
+      { key: 'gold'          as const, label: 'GOLD',   bg: '#FFFBEB', textColor: '#D97706',               labelColor: '#B45309' },
+      { key: 'international' as const, label: 'INTL',   bg: '#EEF2FF', textColor: '#6366F1',               labelColor: '#4338CA' },
+    ]
+    return DEFS
+      .map(d => ({ ...d, pct: rp[d.key].pct, value: rp[d.key].value }))
+      .filter(s => s.pct > 0)
+      .sort((a, b) => b.pct - a.pct)
   })() : null
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -562,154 +574,189 @@ export default function DashboardPage() {
               <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
                 Equity · Debt · Gold · Intl
               </div>
-              {loading || !treemap ? (
+              {loading || !treemapSegments ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '68fr 32fr', gridTemplateRows: '1fr 1fr', gap: '5px', height: '168px' }}>
                   <div style={{ ...SK, gridRow: '1 / 3', borderRadius: '9px' }} />
                   <div style={{ ...SK, borderRadius: '9px' }} />
                   <div style={{ ...SK, borderRadius: '9px' }} />
                 </div>
-              ) : (
-                <div
-                  style={{
+              ) : treemapSegments.length === 0 ? (
+                <div style={{ height: '168px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
+                  No data
+                </div>
+              ) : (() => {
+                const [dominant, ...rest] = treemapSegments
+                const domFs = dominant.pct >= 50 ? '32px' : dominant.pct >= 25 ? '26px' : '20px'
+                return (
+                  <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `${treemap.equityPct || 60}fr ${(treemap.debtPct + treemap.goldPct + treemap.intlPct) || 40}fr`,
-                    gridTemplateRows: '1fr 1fr',
+                    gridTemplateColumns: rest.length === 0 ? '1fr' : `${dominant.pct}fr ${100 - dominant.pct}fr`,
                     gap: '5px',
                     height: '168px',
-                  }}
-                >
-                  {/* Equity — spans full height */}
-                  <div style={{ gridRow: '1 / 3', background: '#111111', borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Equity</span>
-                    <div>
-                      <div style={{ fontSize: '32px', fontWeight: 700, color: '#fff', letterSpacing: '-1px', lineHeight: 1 }}>{treemap.equityPct}%</div>
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '4px' }}>{formatShort(treemap.equityVal)}</div>
-                    </div>
-                  </div>
-                  {/* Debt — top right */}
-                  <div style={{ background: '#FEF3C7', borderRadius: '9px', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '10px', color: '#92400E', textTransform: 'uppercase' }}>Debt</span>
-                    <div>
-                      <div style={{ fontSize: '20px', fontWeight: 700, color: '#92400E', letterSpacing: '-0.5px', lineHeight: 1 }}>{treemap.debtPct}%</div>
-                      <div style={{ fontSize: '11px', color: '#B45309', marginTop: '2px' }}>{formatShort(treemap.debtVal)}</div>
-                    </div>
-                  </div>
-                  {/* Gold + Intl — bottom right, side by side */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-                    <div style={{ background: '#FFFBEB', borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '9.5px', color: '#B45309', textTransform: 'uppercase' }}>Gold</span>
+                  }}>
+                    {/* Dominant block — left, full height */}
+                    <div style={{ background: dominant.bg, borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '10px', color: dominant.labelColor, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{dominant.label}</span>
                       <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#D97706', letterSpacing: '-0.3px', lineHeight: 1 }}>{treemap.goldPct}%</div>
-                        <div style={{ fontSize: '10px', color: '#B45309', marginTop: '1px' }}>{formatShort(treemap.goldVal)}</div>
+                        <div style={{ fontSize: domFs, fontWeight: 700, color: dominant.textColor, letterSpacing: '-1px', lineHeight: 1 }}>{dominant.pct}%</div>
+                        <div style={{ fontSize: '12px', color: dominant.labelColor, marginTop: '4px' }}>{formatShort(dominant.value)}</div>
                       </div>
                     </div>
-                    <div style={{ background: '#EEF2FF', borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '9.5px', color: '#4338CA', textTransform: 'uppercase' }}>Intl</span>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#6366F1', letterSpacing: '-0.3px', lineHeight: 1 }}>{treemap.intlPct}%</div>
-                        <div style={{ fontSize: '10px', color: '#4338CA', marginTop: '1px' }}>{formatShort(treemap.intlVal)}</div>
+                    {/* Right column */}
+                    {rest.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {rest.length <= 2 ? (
+                          rest.map(s => {
+                            const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
+                            return (
+                              <div key={s.key} style={{ flex: 1, background: s.bg, borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '9.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
+                                <div>
+                                  <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
+                                  <div style={{ fontSize: '10px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
+                                </div>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <>
+                            {rest.slice(0, 1).map(s => {
+                              const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
+                              return (
+                                <div key={s.key} style={{ flex: 1, background: s.bg, borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                  <span style={{ fontSize: '9.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
+                                  <div>
+                                    <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
+                                    <div style={{ fontSize: '10px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                              {rest.slice(1).map(s => {
+                                const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
+                                return (
+                                  <div key={s.key} style={{ background: s.bg, borderRadius: '9px', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '8.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
+                                    <div>
+                                      <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
+                                      <div style={{ fontSize: '9px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           )}
         </div>
       )}
 
-      {/* ── ROW 4: Cashflow (static) ── */}
+      {/* ── ROW 4: Cashflow ── */}
       {vis.cashflowCard && (
         <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '14px', animationDelay: '180ms' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
             <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.6px' }}>Monthly Cashflow</div>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Last 6 months</span>
           </div>
-          <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
-                {BARS.map((b, barIdx) => (
-                  <div
-                    key={b.month}
-                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default' }}
-                    onMouseEnter={() => setHoveredBar({ month: b.month, investedAmt: b.investedAmt, returnsAmt: b.returnsAmt, barIndex: barIdx })}
-                    onMouseLeave={() => setHoveredBar(null)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
-                      <div style={{ height: b.inv, flex: 1, borderRadius: '4px 4px 0 0', background: b.now ? 'var(--color-text-primary)' : '#E8E6DE' }} />
-                      <div style={{ height: b.ret, flex: 1, borderRadius: '4px 4px 0 0', background: b.now ? 'var(--color-text-secondary)' : '#D4D0C8' }} />
+          {loading || !cashflow ? (
+            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
+                  {[40, 60, 35, 75, 50, 90].map((h, i) => (
+                    <div key={i} style={{ flex: 1 }}>
+                      <div style={{ ...SK, width: '100%', height: `${h}px`, borderRadius: '4px 4px 0 0' }} />
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div style={{ height: '0.5px', background: 'var(--color-border-subtle)', marginTop: '0' }} />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                  {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ ...SK, flex: 1, height: '11px' }} />)}
+                </div>
               </div>
-
-              {/* Bar hover tooltip */}
-              {hoveredBar !== null && (() => {
-                const leftPct = ((hoveredBar.barIndex + 0.5) / BARS.length) * 100
-                return (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '108px',
-                      left: `${leftPct}%`,
-                      transform: 'translateX(-50%)',
-                      background: 'var(--color-text-primary)',
-                      color: 'var(--color-surface)',
-                      borderRadius: '7px',
-                      padding: '7px 11px',
-                      fontSize: '12px',
-                      whiteSpace: 'nowrap',
-                      pointerEvents: 'none',
-                      zIndex: 10,
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: '3px' }}>{hoveredBar.month}</div>
-                    <div>Invested: ₹{hoveredBar.investedAmt.toLocaleString('en-IN')}</div>
-                    <div style={{ color: 'var(--color-gain)' }}>Returns: +₹{hoveredBar.returnsAmt.toLocaleString('en-IN')}</div>
-                  </div>
-                )
-              })()}
-
-              <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                {BARS.map(b => (
-                  <div key={b.month} style={{ flex: 1, textAlign: 'center', fontSize: '9.5px', color: b.now ? 'var(--color-text-primary)' : '#C8C4B8', fontWeight: b.now ? 600 : 400 }}>
-                    {b.month}
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '2px', background: 'var(--color-text-primary)' }} />
-                  Invested
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '2px', background: '#AAA8A0' }} />
-                  Returns
-                </span>
+              <div style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
+              <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
+                {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: '52px', borderRadius: '8px' }} />)}
               </div>
             </div>
-            <div style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
-            <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
-              <div>
-                <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>₹9,300</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>invested in Jul</div>
+          ) : (() => {
+            const months      = cashflow.months
+            const maxInvested = Math.max(...months.map(m => m.invested), 1)
+            return (
+              <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
+                    {months.map((b, barIdx) => {
+                      const invH = b.invested > 0 ? Math.max(4, Math.round((b.invested / maxInvested) * 90)) : 0
+                      return (
+                        <div
+                          key={b.label}
+                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default' }}
+                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, returnsAmt: 0, barIndex: barIdx })}
+                          onMouseLeave={() => setHoveredBar(null)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
+                            <div style={{ height: invH, flex: 1, borderRadius: '4px 4px 0 0', background: b.isCurrentMonth ? 'var(--color-text-primary)' : '#E8E6DE' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {hoveredBar !== null && (() => {
+                    const leftPct = ((hoveredBar.barIndex + 0.5) / months.length) * 100
+                    return (
+                      <div style={{ position: 'absolute', bottom: '108px', left: `${leftPct}%`, transform: 'translateX(-50%)', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '7px', padding: '7px 11px', fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10 }}>
+                        <div style={{ fontWeight: 600, marginBottom: '3px' }}>{hoveredBar.month}</div>
+                        <div>Invested: {formatINR(hoveredBar.investedAmt)}</div>
+                      </div>
+                    )
+                  })()}
+
+                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {months.map(b => (
+                      <div key={b.label} style={{ flex: 1, textAlign: 'center', fontSize: '9.5px', color: b.isCurrentMonth ? 'var(--color-text-primary)' : '#C8C4B8', fontWeight: b.isCurrentMonth ? 600 : 400 }}>
+                        {b.label}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '2px', background: 'var(--color-text-primary)' }} />
+                      Invested
+                    </span>
+                  </div>
+                </div>
+                <div style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
+                <div style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
+                  <div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.currentMonthInvested)}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>invested</div>
+                  </div>
+                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
+                  <div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>Returns</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+₹0</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>snapshot-based, coming soon</div>
+                  </div>
+                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
+                  <div>
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Total</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.totalInvested)}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>deployed over 6 months</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-              <div>
-                <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>Returns</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+₹8,910</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>this month</div>
-              </div>
-              <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-              <div>
-                <div style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Total</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>₹55,800</div>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>deployed since Feb</div>
-              </div>
-            </div>
-          </div>
+            )
+          })()}
         </div>
       )}
 
