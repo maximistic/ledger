@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Download, AlertTriangle, Flag, Plus, Trash2 } from 'lucide-react'
+import { RefreshCw, Download, AlertTriangle, Flag, Plus, Trash2, Camera } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Section = 'recurring' | 'export' | 'danger' | 'milestones'
+type Section = 'recurring' | 'export' | 'danger' | 'milestones' | 'snapshots'
 
 interface RecurringRule {
   id: string
@@ -44,6 +44,21 @@ type MilestoneDialog =
   | { mode: 'edit'; milestone: Milestone }
   | null
 
+interface SnapshotRecord {
+  id:            string
+  date:          string
+  totalNetWorth: number
+  investedValue: number
+  stocksValue:   number
+  mfValue:       number
+  epfValue:      number
+  fdValue:       number
+  rdValue:       number
+  usStocksValue: number
+  source:        string
+  createdAt:     string
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function ordinalSuffix(n: number): string {
@@ -80,6 +95,10 @@ function downloadCSV(data: Record<string, unknown>[], filename: string) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function formatINR(n: number): string {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
 const ASSET_OPTIONS = [
@@ -163,6 +182,14 @@ export default function SettingsPage() {
   const [mlError,           setMlError]           = useState('')
   const [mlDeleteId,        setMlDeleteId]        = useState<string | null>(null)
   const [mlDeleting,        setMlDeleting]        = useState(false)
+
+  // Snapshots
+  const [snapshotList,        setSnapshotList]        = useState<SnapshotRecord[]>([])
+  const [snapshotCount,       setSnapshotCount]       = useState(0)
+  const [snapshotsLoading,    setSnapshotsLoading]    = useState(false)
+  const [takingSnapshot,      setTakingSnapshot]      = useState(false)
+  const [snDeleteId,          setSnDeleteId]          = useState<string | null>(null)
+  const [snDeleting,          setSnDeleting]          = useState(false)
 
   // ── Fetch recurring rules ──────────────────────────────────────────────────
 
@@ -261,10 +288,50 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // ── Fetch snapshot list ────────────────────────────────────────────────────
+
+  const fetchSnapshotList = useCallback(async () => {
+    setSnapshotsLoading(true)
+    try {
+      const res = await fetch('/api/dashboard/snapshot/list')
+      if (res.ok) {
+        const d = await res.json() as { snapshots: SnapshotRecord[]; count: number }
+        setSnapshotList(d.snapshots)
+        setSnapshotCount(d.count)
+      }
+    } catch (err) {
+      console.error('Failed to load snapshots', err)
+    } finally {
+      setSnapshotsLoading(false)
+    }
+  }, [])
+
+  async function handleTakeSnapshot() {
+    setTakingSnapshot(true)
+    try {
+      const res = await fetch('/api/dashboard/snapshot', { method: 'POST' })
+      if (res.ok) await fetchSnapshotList()
+    } finally {
+      setTakingSnapshot(false)
+    }
+  }
+
+  async function handleDeleteSnapshot(id: string) {
+    setSnDeleting(true)
+    try {
+      await fetch(`/api/dashboard/snapshot/${id}`, { method: 'DELETE' })
+      setSnDeleteId(null)
+      await fetchSnapshotList()
+    } finally {
+      setSnDeleting(false)
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'recurring')  fetchRules()
     if (activeSection === 'milestones') fetchMilestones()
-  }, [activeSection, fetchRules, fetchMilestones])
+    if (activeSection === 'snapshots')  fetchSnapshotList()
+  }, [activeSection, fetchRules, fetchMilestones, fetchSnapshotList])
 
   // Escape closes dialogs
   useEffect(() => {
@@ -527,15 +594,17 @@ export default function SettingsPage() {
   // ── Rail ───────────────────────────────────────────────────────────────────
 
   const RAIL = [
-    { key: 'recurring'  as const, Icon: RefreshCw,     label: 'RECURRING',   sub: `${rules.length} active rules` },
-    { key: 'milestones' as const, Icon: Flag,           label: 'MILESTONES',  sub: 'Track your goals' },
-    { key: 'export'     as const, Icon: Download,       label: 'EXPORT DATA', sub: 'CSV downloads' },
-    { key: 'danger'     as const, Icon: AlertTriangle,  label: 'DANGER ZONE', sub: 'Reset data' },
+    { key: 'recurring'  as const, Icon: RefreshCw,    label: 'RECURRING',   sub: `${rules.length} active rules` },
+    { key: 'milestones' as const, Icon: Flag,          label: 'MILESTONES',  sub: 'Track your goals' },
+    { key: 'snapshots'  as const, Icon: Camera,        label: 'SNAPSHOTS',   sub: `${snapshotCount} snapshot${snapshotCount !== 1 ? 's' : ''}` },
+    { key: 'export'     as const, Icon: Download,      label: 'EXPORT DATA', sub: 'CSV downloads' },
+    { key: 'danger'     as const, Icon: AlertTriangle, label: 'DANGER ZONE', sub: 'Reset data' },
   ]
 
   const SECTION_META: Record<Section, { title: string; subtitle: string }> = {
     recurring:  { title: 'Recurring rules', subtitle: 'Auto-tracking schedules across your portfolio' },
     milestones: { title: 'Milestones',      subtitle: 'Track and celebrate your financial goals' },
+    snapshots:  { title: 'Snapshots',       subtitle: 'Weekly net worth recordings used for your trend chart' },
     export:     { title: 'Export data',     subtitle: 'Download your portfolio data as CSV' },
     danger:     { title: 'Danger zone',     subtitle: 'These actions are permanent and cannot be undone' },
   }
@@ -752,6 +821,160 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          )}
+
+          {/* ── SNAPSHOTS ── */}
+          {activeSection === 'snapshots' && (
+            <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+              {/* Card header */}
+              <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Net worth history</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    Snapshots are taken automatically every week and when you click the Snapshot button
+                  </div>
+                </div>
+                <button
+                  onClick={handleTakeSnapshot}
+                  disabled={takingSnapshot}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: takingSnapshot ? 'default' : 'pointer', opacity: takingSnapshot ? 0.7 : 1, flexShrink: 0 }}
+                >
+                  <Camera size={13} />
+                  {takingSnapshot ? 'Saving…' : 'Take snapshot'}
+                </button>
+              </div>
+
+              {snapshotsLoading ? (
+                /* Skeleton rows */
+                <>
+                  {/* Table header */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
+                    {['Date', 'Net Worth', 'Invested', 'Source', ''].map((h, i) => (
+                      <div key={i} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+                    ))}
+                  </div>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '12px 22px', borderBottom: '0.5px solid var(--color-border-subtle)', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div style={{ ...SK, height: 13, width: '70%' }} />
+                        <div style={{ ...SK, height: 11, width: '40%' }} />
+                      </div>
+                      <div style={{ ...SK, height: 13, width: '80%' }} />
+                      <div style={{ ...SK, height: 13, width: '75%' }} />
+                      <div style={{ ...SK, height: 18, width: '50px', borderRadius: '3px' }} />
+                      <div style={{ ...SK, height: 20, width: 20, borderRadius: '4px', marginLeft: 'auto' }} />
+                    </div>
+                  ))}
+                </>
+              ) : snapshotList.length === 0 ? (
+                /* Empty state */
+                <div style={{ padding: '56px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <Camera size={32} color="var(--color-text-muted)" />
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', marginTop: '4px' }}>No snapshots yet</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', textAlign: 'center', lineHeight: 1.5 }}>
+                    Take your first snapshot to start tracking your net worth over time
+                  </div>
+                  <button
+                    onClick={handleTakeSnapshot}
+                    disabled={takingSnapshot}
+                    style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '6px', border: 'none', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '13px', fontFamily: 'inherit', cursor: takingSnapshot ? 'default' : 'pointer', opacity: takingSnapshot ? 0.7 : 1 }}
+                  >
+                    <Camera size={13} />
+                    {takingSnapshot ? 'Saving…' : 'Take snapshot'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Table header */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
+                    {['Date', 'Net Worth', 'Invested', 'Source', ''].map((h, i) => (
+                      <div key={i} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: i >= 4 ? 'right' : 'left' }}>{h}</div>
+                    ))}
+                  </div>
+
+                  {/* Data rows */}
+                  {snapshotList.map((sn, i) => {
+                    const d         = new Date(sn.date)
+                    const dateLabel = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    const timeLabel = new Date(sn.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                    const isLast    = i === snapshotList.length - 1
+                    const isDeleting = snDeleteId === sn.id
+                    return (
+                      <div
+                        key={sn.id}
+                        style={{
+                          display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px',
+                          padding: '12px 22px', alignItems: 'center',
+                          borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
+                          background: 'var(--color-surface)',
+                          transition: 'background 120ms ease',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#FAFAF8' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-surface)' }}
+                      >
+                        {/* Date */}
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{dateLabel}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{timeLabel}</div>
+                        </div>
+
+                        {/* Net Worth */}
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatINR(sn.totalNetWorth)}
+                        </div>
+
+                        {/* Invested */}
+                        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatINR(sn.investedValue)}
+                        </div>
+
+                        {/* Source badge */}
+                        <div>
+                          <span style={{
+                            fontSize: '10px', padding: '2px 7px', borderRadius: '3px', fontWeight: 600,
+                            background: sn.source === 'AUTO' ? '#F0F4FF' : '#F7F6F2',
+                            color:      sn.source === 'AUTO' ? '#4338CA' : '#7A7670',
+                          }}>
+                            {sn.source === 'AUTO' ? 'Auto' : 'Manual'}
+                          </span>
+                        </div>
+
+                        {/* Action */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          {isDeleting ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontSize: '11.5px', color: '#DC2626', whiteSpace: 'nowrap' }}>Delete?</span>
+                              <button
+                                onClick={() => setSnDeleteId(null)}
+                                style={{ padding: '3px 7px', borderRadius: '4px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '11px', fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSnapshot(sn.id)}
+                                disabled={snDeleting}
+                                style={{ padding: '3px 7px', borderRadius: '4px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '11px', fontFamily: 'inherit', cursor: snDeleting ? 'default' : 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                {snDeleting ? '…' : 'Delete'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setSnDeleteId(sn.id)}
+                              style={{ padding: '4px', borderRadius: '4px', border: 'none', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', lineHeight: 0, transition: 'color 120ms ease, background 120ms ease' }}
+                              onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FFF5F5' }}
+                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.background = 'transparent' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
               )}
             </div>
           )}
