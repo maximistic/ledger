@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Download, AlertTriangle, Flag, Plus, Trash2, Camera } from 'lucide-react'
+import { RefreshCw, Download, AlertTriangle } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Section = 'recurring' | 'export' | 'danger' | 'milestones' | 'snapshots'
+type Section = 'recurring' | 'export' | 'danger'
 
 interface RecurringRule {
   id: string
@@ -27,37 +27,6 @@ type EditDialogState =
   | null
 
 type DangerKey = 'stocks' | 'mf' | 'all' | null
-
-interface Milestone {
-  id: string
-  title: string
-  targetAmount: number
-  targetAsset: string | null
-  achievedDate: string | null
-  isAchieved: boolean
-  progressPct: number
-  amountAway: number
-}
-
-type MilestoneDialog =
-  | { mode: 'add' }
-  | { mode: 'edit'; milestone: Milestone }
-  | null
-
-interface SnapshotRecord {
-  id:            string
-  date:          string
-  totalNetWorth: number
-  investedValue: number
-  stocksValue:   number
-  mfValue:       number
-  epfValue:      number
-  fdValue:       number
-  rdValue:       number
-  usStocksValue: number
-  source:        string
-  createdAt:     string
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -96,20 +65,6 @@ function downloadCSV(data: Record<string, unknown>[], filename: string) {
   a.click()
   URL.revokeObjectURL(url)
 }
-
-function formatINR(n: number): string {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
-}
-
-const ASSET_OPTIONS = [
-  { label: 'Total portfolio', value: 'total' },
-  { label: 'Stocks',          value: 'stocks' },
-  { label: 'Mutual Funds',    value: 'mf' },
-  { label: 'EPF',             value: 'epf' },
-  { label: 'FDs & RDs',       value: 'fd' },
-  { label: 'International',   value: 'us' },
-  { label: 'Any asset',       value: '' },
-]
 
 const dateStr = new Date().toISOString().split('T')[0]
 
@@ -170,26 +125,6 @@ export default function SettingsPage() {
   const [dangerLoading, setDangerLoading] = useState(false)
   const [dangerSuccess, setDangerSuccess] = useState<Record<string, string>>({})
   const [resetText,     setResetText]     = useState('')
-
-  // Milestones
-  const [milestones,        setMilestones]        = useState<Milestone[]>([])
-  const [milestonesLoading, setMilestonesLoading] = useState(false)
-  const [milestoneDialog,   setMilestoneDialog]   = useState<MilestoneDialog>(null)
-  const [mlTitle,           setMlTitle]           = useState('')
-  const [mlAmount,          setMlAmount]          = useState('')
-  const [mlAsset,           setMlAsset]           = useState('total')
-  const [mlSubmitting,      setMlSubmitting]      = useState(false)
-  const [mlError,           setMlError]           = useState('')
-  const [mlDeleteId,        setMlDeleteId]        = useState<string | null>(null)
-  const [mlDeleting,        setMlDeleting]        = useState(false)
-
-  // Snapshots
-  const [snapshotList,        setSnapshotList]        = useState<SnapshotRecord[]>([])
-  const [snapshotCount,       setSnapshotCount]       = useState(0)
-  const [snapshotsLoading,    setSnapshotsLoading]    = useState(false)
-  const [takingSnapshot,      setTakingSnapshot]      = useState(false)
-  const [snDeleteId,          setSnDeleteId]          = useState<string | null>(null)
-  const [snDeleting,          setSnDeleting]          = useState(false)
 
   // ── Fetch recurring rules ──────────────────────────────────────────────────
 
@@ -271,80 +206,19 @@ export default function SettingsPage() {
     }
   }, [])
 
-  // ── Fetch milestones ───────────────────────────────────────────────────────
-
-  const fetchMilestones = useCallback(async () => {
-    setMilestonesLoading(true)
-    try {
-      const res = await fetch('/api/milestones')
-      if (res.ok) {
-        const d = await res.json() as { milestones: Milestone[] }
-        setMilestones(d.milestones)
-      }
-    } catch (err) {
-      console.error('Failed to load milestones', err)
-    } finally {
-      setMilestonesLoading(false)
-    }
-  }, [])
-
-  // ── Fetch snapshot list ────────────────────────────────────────────────────
-
-  const fetchSnapshotList = useCallback(async () => {
-    setSnapshotsLoading(true)
-    try {
-      const res = await fetch('/api/dashboard/snapshot/list')
-      if (res.ok) {
-        const d = await res.json() as { snapshots: SnapshotRecord[]; count: number }
-        setSnapshotList(d.snapshots)
-        setSnapshotCount(d.count)
-      }
-    } catch (err) {
-      console.error('Failed to load snapshots', err)
-    } finally {
-      setSnapshotsLoading(false)
-    }
-  }, [])
-
-  async function handleTakeSnapshot() {
-    setTakingSnapshot(true)
-    try {
-      const res = await fetch('/api/dashboard/snapshot', { method: 'POST' })
-      if (res.ok) await fetchSnapshotList()
-    } finally {
-      setTakingSnapshot(false)
-    }
-  }
-
-  async function handleDeleteSnapshot(id: string) {
-    setSnDeleting(true)
-    try {
-      await fetch(`/api/dashboard/snapshot/${id}`, { method: 'DELETE' })
-      setSnDeleteId(null)
-      await fetchSnapshotList()
-    } finally {
-      setSnDeleting(false)
-    }
-  }
-
   useEffect(() => {
-    if (activeSection === 'recurring')  fetchRules()
-    if (activeSection === 'milestones') fetchMilestones()
-    if (activeSection === 'snapshots')  fetchSnapshotList()
-  }, [activeSection, fetchRules, fetchMilestones, fetchSnapshotList])
+    if (activeSection === 'recurring') fetchRules()
+  }, [activeSection, fetchRules])
 
   // Escape closes dialogs
   useEffect(() => {
-    if (!editState && !milestoneDialog) return
+    if (!editState) return
     const fn = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setEditState(null)
-        setMilestoneDialog(null)
-      }
+      if (e.key === 'Escape') setEditState(null)
     }
     document.addEventListener('keydown', fn)
     return () => document.removeEventListener('keydown', fn)
-  }, [editState, milestoneDialog])
+  }, [editState])
 
   // ── Open edit dialog ───────────────────────────────────────────────────────
 
@@ -409,72 +283,6 @@ export default function SettingsPage() {
       await fetchRules()
     } finally {
       setEditLoading(false)
-    }
-  }
-
-  // ── Milestone dialog helpers ───────────────────────────────────────────────
-
-  function openAddMilestone() {
-    setMlTitle('')
-    setMlAmount('')
-    setMlAsset('total')
-    setMlError('')
-    setMilestoneDialog({ mode: 'add' })
-  }
-
-  function openEditMilestone(m: Milestone) {
-    setMlTitle(m.title)
-    setMlAmount(String(m.targetAmount))
-    setMlAsset(m.targetAsset ?? '')
-    setMlError('')
-    setMilestoneDialog({ mode: 'edit', milestone: m })
-  }
-
-  async function handleSubmitMilestone() {
-    if (!milestoneDialog) return
-    const trimTitle = mlTitle.trim()
-    const amount    = parseFloat(mlAmount)
-    if (!trimTitle) { setMlError('Goal title is required'); return }
-    if (!mlAmount || isNaN(amount) || amount <= 0) { setMlError('Target amount must be greater than 0'); return }
-
-    setMlSubmitting(true)
-    setMlError('')
-    try {
-      const targetAsset = mlAsset || null
-      let res: Response
-      if (milestoneDialog.mode === 'add') {
-        res = await fetch('/api/milestones', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: trimTitle, targetAmount: amount, targetAsset }),
-        })
-      } else {
-        res = await fetch(`/api/milestones/${milestoneDialog.milestone.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: trimTitle, targetAmount: amount, targetAsset }),
-        })
-      }
-      if (!res.ok) {
-        const d = await res.json() as { error?: string }
-        setMlError(d.error ?? 'Failed to save')
-        return
-      }
-      setMilestoneDialog(null)
-      await fetchMilestones()
-    } finally {
-      setMlSubmitting(false)
-    }
-  }
-
-  async function handleDeleteMilestone(id: string) {
-    setMlDeleting(true)
-    try {
-      await fetch(`/api/milestones/${id}`, { method: 'DELETE' })
-      setMlDeleteId(null)
-      await fetchMilestones()
-    } finally {
-      setMlDeleting(false)
     }
   }
 
@@ -594,19 +402,15 @@ export default function SettingsPage() {
   // ── Rail ───────────────────────────────────────────────────────────────────
 
   const RAIL = [
-    { key: 'recurring'  as const, Icon: RefreshCw,    label: 'RECURRING',   sub: `${rules.length} active rules` },
-    { key: 'milestones' as const, Icon: Flag,          label: 'MILESTONES',  sub: 'Track your goals' },
-    { key: 'snapshots'  as const, Icon: Camera,        label: 'SNAPSHOTS',   sub: `${snapshotCount} snapshot${snapshotCount !== 1 ? 's' : ''}` },
-    { key: 'export'     as const, Icon: Download,      label: 'EXPORT DATA', sub: 'CSV downloads' },
-    { key: 'danger'     as const, Icon: AlertTriangle, label: 'DANGER ZONE', sub: 'Reset data' },
+    { key: 'recurring' as const, Icon: RefreshCw,    label: 'RECURRING',   sub: `${rules.length} active rules` },
+    { key: 'export'    as const, Icon: Download,      label: 'EXPORT DATA', sub: 'CSV downloads' },
+    { key: 'danger'    as const, Icon: AlertTriangle, label: 'DANGER ZONE', sub: 'Reset data' },
   ]
 
   const SECTION_META: Record<Section, { title: string; subtitle: string }> = {
-    recurring:  { title: 'Recurring rules', subtitle: 'Auto-tracking schedules across your portfolio' },
-    milestones: { title: 'Milestones',      subtitle: 'Track and celebrate your financial goals' },
-    snapshots:  { title: 'Snapshots',       subtitle: 'Weekly net worth recordings used for your trend chart' },
-    export:     { title: 'Export data',     subtitle: 'Download your portfolio data as CSV' },
-    danger:     { title: 'Danger zone',     subtitle: 'These actions are permanent and cannot be undone' },
+    recurring: { title: 'Recurring rules', subtitle: 'Auto-tracking schedules across your portfolio' },
+    export:    { title: 'Export data',     subtitle: 'Download your portfolio data as CSV' },
+    danger:    { title: 'Danger zone',     subtitle: 'These actions are permanent and cannot be undone' },
   }
 
   const { title, subtitle } = SECTION_META[activeSection]
@@ -748,274 +552,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ── MILESTONES ── */}
-          {activeSection === 'milestones' && (
-            <div style={card}>
-              <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Your goals</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Set targets and track your progress</div>
-                </div>
-                <button
-                  onClick={openAddMilestone}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer' }}
-                >
-                  <Plus size={13} />
-                  Add goal
-                </button>
-              </div>
-
-              {milestonesLoading ? (
-                <>
-                  {[1, 2, 3].map(i => (
-                    <div key={i} style={{ padding: '14px 22px', borderBottom: '0.5px solid var(--color-border-subtle)' }}>
-                      <div style={{ ...SK, height: 14, width: '45%', marginBottom: '8px' }} />
-                      <div style={{ ...SK, height: 4, borderRadius: '2px' }} />
-                    </div>
-                  ))}
-                </>
-              ) : milestones.length === 0 ? (
-                <div style={{ padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                  <Flag size={32} color="var(--color-text-muted)" />
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No milestones yet</div>
-                  <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', maxWidth: '280px', textAlign: 'center', lineHeight: 1.5 }}>
-                    Add your first financial goal to start tracking progress.
-                  </div>
-                  <button
-                    onClick={openAddMilestone}
-                    style={{ marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 14px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer' }}
-                  >
-                    <Plus size={13} />
-                    Add goal
-                  </button>
-                </div>
-              ) : (
-                milestones.map((m, i) => (
-                  <div
-                    key={m.id}
-                    style={{ padding: '14px 22px', borderBottom: i < milestones.length - 1 ? '0.5px solid var(--color-border-subtle)' : 'none', display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}
-                    className="milestone-row"
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <button
-                        onClick={() => openEditMilestone(m)}
-                        style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}
-                      >
-                        <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: '2px' }}>
-                          {m.title}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                          Target: {formatShort(m.targetAmount)}
-                          {m.targetAsset ? ` in ${ASSET_OPTIONS.find(o => o.value === m.targetAsset)?.label ?? m.targetAsset}` : ''}
-                        </div>
-                      </button>
-                      <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden', marginTop: '7px' }}>
-                        <div style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? '#16A34A' : 'var(--color-text-primary)', borderRadius: '2px', transition: 'width 600ms ease' }} />
-                      </div>
-                    </div>
-
-                    <div style={{ flexShrink: 0, textAlign: 'right', minWidth: '80px' }}>
-                      {m.isAchieved ? (
-                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#F0FDF4', color: '#16A34A', display: 'inline-block', marginBottom: '2px' }}>
-                          ✓ Achieved
-                        </span>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}>{m.progressPct}%</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{formatShort(m.amountAway)} away</div>
-                        </>
-                      )}
-                      {m.isAchieved && m.achievedDate && (
-                        <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                          {formatDateShort(m.achievedDate)}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Delete control */}
-                    <div style={{ flexShrink: 0 }}>
-                      {mlDeleteId === m.id ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11.5px', color: '#DC2626', whiteSpace: 'nowrap' }}>Delete?</span>
-                          <button onClick={() => setMlDeleteId(null)} style={{ padding: '4px 8px', borderRadius: '5px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '11.5px', fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' }}>No</button>
-                          <button
-                            onClick={() => handleDeleteMilestone(m.id)}
-                            disabled={mlDeleting}
-                            style={{ padding: '4px 8px', borderRadius: '5px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '11.5px', fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            {mlDeleting ? '…' : 'Yes'}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setMlDeleteId(m.id)}
-                          style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', color: 'var(--color-text-muted)', lineHeight: 0, borderRadius: '4px' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* ── SNAPSHOTS ── */}
-          {activeSection === 'snapshots' && (
-            <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-              {/* Card header */}
-              <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Net worth history</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                    Snapshots are taken automatically every week and when you click the Snapshot button
-                  </div>
-                </div>
-                <button
-                  onClick={handleTakeSnapshot}
-                  disabled={takingSnapshot}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: takingSnapshot ? 'default' : 'pointer', opacity: takingSnapshot ? 0.7 : 1, flexShrink: 0 }}
-                >
-                  <Camera size={13} />
-                  {takingSnapshot ? 'Saving…' : 'Take snapshot'}
-                </button>
-              </div>
-
-              {snapshotsLoading ? (
-                /* Skeleton rows */
-                <>
-                  {/* Table header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
-                    {['Date', 'Net Worth', 'Invested', 'Source', ''].map((h, i) => (
-                      <div key={i} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
-                    ))}
-                  </div>
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '12px 22px', borderBottom: '0.5px solid var(--color-border-subtle)', gap: '8px', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        <div style={{ ...SK, height: 13, width: '70%' }} />
-                        <div style={{ ...SK, height: 11, width: '40%' }} />
-                      </div>
-                      <div style={{ ...SK, height: 13, width: '80%' }} />
-                      <div style={{ ...SK, height: 13, width: '75%' }} />
-                      <div style={{ ...SK, height: 18, width: '50px', borderRadius: '3px' }} />
-                      <div style={{ ...SK, height: 20, width: 20, borderRadius: '4px', marginLeft: 'auto' }} />
-                    </div>
-                  ))}
-                </>
-              ) : snapshotList.length === 0 ? (
-                /* Empty state */
-                <div style={{ padding: '56px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <Camera size={32} color="var(--color-text-muted)" />
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', marginTop: '4px' }}>No snapshots yet</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '300px', textAlign: 'center', lineHeight: 1.5 }}>
-                    Take your first snapshot to start tracking your net worth over time
-                  </div>
-                  <button
-                    onClick={handleTakeSnapshot}
-                    disabled={takingSnapshot}
-                    style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '6px', border: 'none', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '13px', fontFamily: 'inherit', cursor: takingSnapshot ? 'default' : 'pointer', opacity: takingSnapshot ? 0.7 : 1 }}
-                  >
-                    <Camera size={13} />
-                    {takingSnapshot ? 'Saving…' : 'Take snapshot'}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Table header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px', padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
-                    {['Date', 'Net Worth', 'Invested', 'Source', ''].map((h, i) => (
-                      <div key={i} style={{ fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 500, textAlign: i >= 4 ? 'right' : 'left' }}>{h}</div>
-                    ))}
-                  </div>
-
-                  {/* Data rows */}
-                  {snapshotList.map((sn, i) => {
-                    const d         = new Date(sn.date)
-                    const dateLabel = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                    const timeLabel = new Date(sn.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                    const isLast    = i === snapshotList.length - 1
-                    const isDeleting = snDeleteId === sn.id
-                    return (
-                      <div
-                        key={sn.id}
-                        style={{
-                          display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 80px',
-                          padding: '12px 22px', alignItems: 'center',
-                          borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
-                          background: 'var(--color-surface)',
-                          transition: 'background 120ms ease',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#FAFAF8' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-surface)' }}
-                      >
-                        {/* Date */}
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{dateLabel}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{timeLabel}</div>
-                        </div>
-
-                        {/* Net Worth */}
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatINR(sn.totalNetWorth)}
-                        </div>
-
-                        {/* Invested */}
-                        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                          {formatINR(sn.investedValue)}
-                        </div>
-
-                        {/* Source badge */}
-                        <div>
-                          <span style={{
-                            fontSize: '10px', padding: '2px 7px', borderRadius: '3px', fontWeight: 600,
-                            background: sn.source === 'AUTO' ? '#F0F4FF' : '#F7F6F2',
-                            color:      sn.source === 'AUTO' ? '#4338CA' : '#7A7670',
-                          }}>
-                            {sn.source === 'AUTO' ? 'Auto' : 'Manual'}
-                          </span>
-                        </div>
-
-                        {/* Action */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          {isDeleting ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ fontSize: '11.5px', color: '#DC2626', whiteSpace: 'nowrap' }}>Delete?</span>
-                              <button
-                                onClick={() => setSnDeleteId(null)}
-                                style={{ padding: '3px 7px', borderRadius: '4px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '11px', fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSnapshot(sn.id)}
-                                disabled={snDeleting}
-                                style={{ padding: '3px 7px', borderRadius: '4px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '11px', fontFamily: 'inherit', cursor: snDeleting ? 'default' : 'pointer', whiteSpace: 'nowrap' }}
-                              >
-                                {snDeleting ? '…' : 'Delete'}
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setSnDeleteId(sn.id)}
-                              style={{ padding: '4px', borderRadius: '4px', border: 'none', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', lineHeight: 0, transition: 'color 120ms ease, background 120ms ease' }}
-                              onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FFF5F5' }}
-                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.background = 'transparent' }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ── EXPORT ── */}
           {activeSection === 'export' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {[
@@ -1183,54 +719,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ── Milestone add/edit dialog ── */}
-      {milestoneDialog !== null && (
-        <div onClick={e => { if (e.target === e.currentTarget) setMilestoneDialog(null) }} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--overlay-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--color-bg)', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: 'var(--shadow-lg)', overflow: 'hidden' }}>
-            <div style={{ padding: '18px 20px 14px', borderBottom: '0.5px solid var(--color-border)' }}>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                {milestoneDialog.mode === 'add' ? 'Add milestone' : 'Edit milestone'}
-              </div>
-            </div>
-            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={labelStyle}>Goal title</label>
-                <input
-                  type="text" placeholder="e.g. ₹5L total portfolio" style={inputStyle}
-                  value={mlTitle} onChange={e => setMlTitle(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Target amount (₹)</label>
-                <input
-                  type="number" min={1} placeholder="500000" style={inputStyle}
-                  value={mlAmount} onChange={e => setMlAmount(e.target.value)}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Track against</label>
-                <select
-                  value={mlAsset}
-                  onChange={e => setMlAsset(e.target.value)}
-                  style={{ ...inputStyle, appearance: 'auto', cursor: 'pointer' }}
-                >
-                  {ASSET_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              {mlError && <div style={{ fontSize: '12px', color: 'var(--color-loss)', padding: '8px 10px', background: 'var(--color-loss-subtle)', borderRadius: '6px' }}>{mlError}</div>}
-            </div>
-            <div style={{ padding: '12px 20px', borderTop: '0.5px solid var(--color-border)', display: 'flex', gap: '8px' }}>
-              <button onClick={() => setMilestoneDialog(null)} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSubmitMilestone} disabled={mlSubmitting} style={{ flex: 1, padding: '8px', borderRadius: '6px', border: 'none', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit', cursor: mlSubmitting ? 'default' : 'pointer', opacity: mlSubmitting ? 0.7 : 1 }}>
-                {mlSubmitting ? 'Saving…' : milestoneDialog.mode === 'add' ? 'Add goal' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

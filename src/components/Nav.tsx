@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Moon, Sun, Settings, LayoutDashboard, Briefcase } from 'lucide-react'
+import { Moon, Sun, Settings, LayoutDashboard, Briefcase, BarChart2 } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 
 const navLinks = [
   { href: '/', label: 'Dashboard' },
   { href: '/assets', label: 'Assets' },
+  { href: '/reports', label: 'Reports' },
 ]
 
 const iconButtonStyle: React.CSSProperties = {
@@ -118,6 +119,7 @@ export default function Nav() {
         {[
           { href: '/',         label: 'Dashboard', Icon: LayoutDashboard, active: pathname === '/' },
           { href: '/assets',   label: 'Assets',    Icon: Briefcase,       active: pathname.startsWith('/assets') },
+          { href: '/reports',  label: 'Reports',   Icon: BarChart2,       active: pathname.startsWith('/reports') },
           { href: '/settings', label: 'Settings',  Icon: Settings,        active: pathname.startsWith('/settings') },
         ].map(({ href, label, Icon, active }) => (
           <Link
