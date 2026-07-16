@@ -172,6 +172,7 @@ export default function AddRDDialog({ rd, onClose, onSuccess }: Props) {
       style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--overlay-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{ background: 'var(--color-bg)', borderRadius: '12px', width: '100%', maxWidth: '500px', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 40px)' }}
       >

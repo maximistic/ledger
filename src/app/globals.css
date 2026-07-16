@@ -430,9 +430,10 @@ html {
     display: none !important;
   }
 
-  /* Layout: 72px bottom padding clears the tab bar */
+  /* Layout: 72px bottom padding clears the tab bar, no horizontal overflow */
   .main-content-wrapper {
     padding: 16px 16px 72px 16px !important;
+    overflow-x: hidden !important;
   }
 
   /* Assets / Settings: hide left rails on mobile */
@@ -470,10 +471,135 @@ html {
 
   /* Dialogs: full-width on mobile */
   .dialog-panel {
-    max-width: calc(100vw - 32px) !important;
-    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 24px) !important;
+    width: calc(100vw - 24px) !important;
+    margin: 12px !important;
     max-height: 85vh !important;
     overflow-y: auto !important;
+  }
+
+  /* ── FIX 1: EPF page ─────────────────────────────────────── */
+
+  /* A. Account strip: stack vertically */
+  .epf-account-strip {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .epf-account-right {
+    margin-top: 8px !important;
+    width: 100% !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+  .epf-account-right > div {
+    text-align: left !important;
+    align-items: flex-start !important;
+  }
+  .epf-account-right > div > div:first-child {
+    justify-content: flex-start !important;
+  }
+  .epf-employer-name {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .epf-uan-line { display: block !important; font-size: 11px !important; }
+  .epf-uan-sep { display: none !important; }
+
+  /* B. Stat cards: 4-col → 2-col */
+  .epf-stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .epf-stat-card {
+    padding: 10px 12px !important;
+  }
+  .epf-stat-value {
+    font-size: 16px !important;
+  }
+
+  /* C. Main grid: stack vertically */
+  .epf-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* D. Contribution table: 4-col, hide Wages */
+  .epf-txn-grid {
+    grid-template-columns: 1fr 1fr 1fr 1fr !important;
+  }
+  .epf-wages-col {
+    display: none !important;
+  }
+
+  /* ── FIX 2: Dashboard header ─────────────────────────────── */
+
+  .dashboard-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .dashboard-header-amount {
+    font-size: 32px !important;
+    letter-spacing: -0.5px !important;
+  }
+  .dashboard-header-actions {
+    width: 100% !important;
+  }
+  .dashboard-header-actions > button {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+  .dashboard-header-gain {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+  .dashboard-header-meta {
+    font-size: 11px !important;
+  }
+
+  /* ── FIX 3: US stocks table ──────────────────────────────── */
+
+  .us-table-wrapper {
+    overflow-x: unset !important;
+  }
+  .us-table-inner {
+    min-width: unset !important;
+  }
+  .us-table-header,
+  .us-table-row {
+    grid-template-columns: 1.8fr 0.8fr 1fr !important;
+  }
+  .us-col-avg,
+  .us-col-current-usd,
+  .us-col-invested,
+  .us-col-pnl {
+    display: none !important;
+  }
+  .us-pnl-mobile { display: block !important; }
+  .us-desktop-label { display: none !important; }
+  .us-mobile-label { display: inline !important; }
+
+  /* ── FIX 4A: Section header action buttons wrap ──────────── */
+
+  .section-header-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+  }
+  .section-header-actions > button {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* ── FIX 4D: FD/RD sub-tab switcher full width ───────────── */
+
+  .fdrd-switcher {
+    display: flex !important;
+    width: 100% !important;
+  }
+  .fdrd-switcher > button {
+    flex: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
   }
 }
 
@@ -484,3 +610,7 @@ html {
     width: 150px !important;
   }
 }
+
+/* ── US stocks: mobile-only P&L badge (hidden on desktop) ─────── */
+.us-pnl-mobile { display: none; }
+.us-mobile-label { display: none; }

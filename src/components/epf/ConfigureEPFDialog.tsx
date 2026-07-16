@@ -187,6 +187,7 @@ export default function ConfigureEPFDialog({ account, onClose, onSuccess }: Prop
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',

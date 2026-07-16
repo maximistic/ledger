@@ -89,15 +89,22 @@ const hCell: React.CSSProperties = {
 
 function SkeletonTable() {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
-          {['Name', 'Qty', 'Avg (USD)', 'Current (USD)', 'Invested (INR)', 'Current (INR)', 'P&L'].map(h => (
-            <div key={h} style={hCell}>{h}</div>
-          ))}
+    <div className="us-table-wrapper" style={{ overflowX: 'auto' }}>
+      <div className="us-table-inner" style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
+        <div className="us-table-header" style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
+          <div style={hCell}>Name</div>
+          <div style={{ ...hCell, textAlign: 'right' }}>Qty</div>
+          <div className="us-col-avg" style={{ ...hCell, textAlign: 'right' }}>Avg (USD)</div>
+          <div className="us-col-current-usd" style={{ ...hCell, textAlign: 'right' }}>Current (USD)</div>
+          <div className="us-col-invested" style={{ ...hCell, textAlign: 'right' }}>Invested (INR)</div>
+          <div style={{ ...hCell, textAlign: 'right' }}>
+            <span className="us-desktop-label">Current (INR)</span>
+            <span className="us-mobile-label">Value (INR)</span>
+          </div>
+          <div className="us-col-pnl" style={{ ...hCell, textAlign: 'right' }}>P&amp;L</div>
         </div>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', padding: '14px 20px', borderBottom: i < 3 ? '0.5px solid var(--color-border-subtle)' : 'none', alignItems: 'center' }}>
+          <div key={i} className="us-table-row" style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', padding: '14px 20px', borderBottom: i < 3 ? '0.5px solid var(--color-border-subtle)' : 'none', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: 38, height: 38, borderRadius: 7, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
               <div>
@@ -105,9 +112,12 @@ function SkeletonTable() {
                 <div style={{ height: 11, width: 70, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
               </div>
             </div>
-            {Array.from({ length: 6 }).map((_, j) => (
-              <div key={j} style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
-            ))}
+            <div style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            <div className="us-col-avg" style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            <div className="us-col-current-usd" style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            <div className="us-col-invested" style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            <div style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+            <div className="us-col-pnl" style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
           </div>
         ))}
       </div>
@@ -136,17 +146,20 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
+    <div className="us-table-wrapper" style={{ overflowX: 'auto' }}>
+      <div className="us-table-inner" style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '900px' }}>
         {/* Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
+        <div className="us-table-header" style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
           <div style={hCell}>Name</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Qty</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>Avg (USD)</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>Current (USD)</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>Invested (INR)</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>Current (INR)</div>
-          <div style={{ ...hCell, textAlign: 'right' }}>P&amp;L</div>
+          <div className="us-col-avg" style={{ ...hCell, textAlign: 'right' }}>Avg (USD)</div>
+          <div className="us-col-current-usd" style={{ ...hCell, textAlign: 'right' }}>Current (USD)</div>
+          <div className="us-col-invested" style={{ ...hCell, textAlign: 'right' }}>Invested (INR)</div>
+          <div style={{ ...hCell, textAlign: 'right' }}>
+            <span className="us-desktop-label">Current (INR)</span>
+            <span className="us-mobile-label">Value (INR)</span>
+          </div>
+          <div className="us-col-pnl" style={{ ...hCell, textAlign: 'right' }}>P&amp;L</div>
         </div>
 
         {stocks.map((stock, i) => {
@@ -158,6 +171,7 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
           return (
             <div
               key={stock.id}
+              className="us-table-row"
               onMouseEnter={() => setHoveredId(stock.id)}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => onRowClick(stock)}
@@ -172,7 +186,7 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
               }}
             >
               {/* Name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <div style={{
                   width: '38px', height: '38px', minWidth: '38px', maxWidth: '38px',
                   flexShrink: 0, borderRadius: '7px',
@@ -183,9 +197,9 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
                 }}>
                   {stock.ticker}
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 500 }}>
+                    <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {stock.name}
                     </div>
                     <div style={USD_BADGE}>USD</div>
@@ -193,6 +207,12 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
                     {stock.ticker} · {stock.exchange}
                   </div>
+                  {/* Mobile-only P&L badge */}
+                  {!priceStale && (
+                    <div className="us-pnl-mobile" style={{ fontSize: '10.5px', fontWeight: 500, color: gainColor, marginTop: '2px' }}>
+                      {formatPctSigned(stock.gainLossPct)}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -202,12 +222,12 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
               </div>
 
               {/* Avg USD */}
-              <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="us-col-avg" style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {formatUSD(stock.avgPriceUSD)}
               </div>
 
               {/* Current USD */}
-              <div style={{ textAlign: 'right' }}>
+              <div className="us-col-current-usd" style={{ textAlign: 'right' }}>
                 {priceStale ? (
                   <>
                     <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600 }}>—</div>
@@ -221,7 +241,7 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
               </div>
 
               {/* Invested INR */}
-              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              <div className="us-col-invested" style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {formatINR(stock.investedValueINR)}
               </div>
 
@@ -240,7 +260,7 @@ function StocksTable({ stocks, onRowClick }: { stocks: USStock[]; onRowClick: (s
               </div>
 
               {/* P&L */}
-              <div style={{ textAlign: 'right' }}>
+              <div className="us-col-pnl" style={{ textAlign: 'right' }}>
                 {priceStale ? (
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</div>
                 ) : (
@@ -367,7 +387,7 @@ export default function USStocksTab({ onTotalsChange }: Props) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={handleRefresh}
               disabled={refreshing}

@@ -149,6 +149,7 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-surface)',

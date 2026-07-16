@@ -123,6 +123,7 @@ export default function UploadPassbookDialog({ onClose, onSuccess }: Props) {
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',

@@ -210,6 +210,7 @@ export default function AddEditStockDialog({ mode, stock, onClose, onSuccess }: 
       }}
     >
       <div
+        className="dialog-panel"
         style={{
           background: 'var(--color-bg)',
           borderRadius: '12px',

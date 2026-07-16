@@ -482,6 +482,7 @@ export default function FundDetailDialog({ fund, onClose, onEdit, onDelete, onRe
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',

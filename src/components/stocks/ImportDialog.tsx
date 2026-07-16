@@ -112,6 +112,7 @@ export default function ImportDialog({ onClose, onSuccess }: Props) {
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',

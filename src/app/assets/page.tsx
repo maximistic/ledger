@@ -868,7 +868,7 @@ export default function AssetsPage() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
                   {/* Refresh prices */}
                   <button
                     onClick={handleRefresh}

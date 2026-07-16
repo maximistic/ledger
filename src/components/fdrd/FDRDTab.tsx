@@ -466,7 +466,7 @@ export default function FDRDTab({ onTotalsChange }: Props) {
       </div>
 
       {/* ── Sub-tab switcher ────────────────────────────────────────────────── */}
-      <div style={{
+      <div className="fdrd-switcher" style={{
         display: 'inline-flex', gap: '3px', padding: '3px',
         background: 'var(--color-surface-raised)',
         border: '0.5px solid var(--color-border)',

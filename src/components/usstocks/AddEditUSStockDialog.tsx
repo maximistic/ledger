@@ -155,6 +155,7 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
       style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--overlay-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
     >
       <div
+        className="dialog-panel"
         style={{ background: 'var(--color-bg)', borderRadius: '12px', width: '100%', maxWidth: '480px', boxShadow: 'var(--shadow-lg)', overflow: 'hidden' }}
         onClick={e => e.stopPropagation()}
       >

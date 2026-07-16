@@ -278,7 +278,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
       </div>
 
       {/* ── Account strip ───────────────────────────────────────────────────── */}
-      <div style={{
+      <div className="epf-account-strip" style={{
         background: 'var(--color-surface)',
         border: '0.5px solid var(--color-border)',
         borderRadius: '10px',
@@ -286,18 +286,23 @@ export default function EPFTab({ onCorpusChange }: Props) {
         marginBottom: '12px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="epf-employer-name" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
             {account.employerName ?? 'EPF Account'}
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', marginTop: '3px' }}>
-            {account.uan ? `UAN: ${account.uan}` : 'UAN not set'}
-            {account.memberId ? ` · Member ID: ${account.memberId}` : ''}
+            <span className="epf-uan-line">{account.uan ? `UAN: ${account.uan}` : 'UAN not set'}</span>
+            {account.memberId && (
+              <>
+                <span className="epf-uan-sep"> · </span>
+                <span className="epf-uan-line">{`Member ID: ${account.memberId}`}</span>
+              </>
+            )}
           </div>
         </div>
 
         {account.trackingStatus === 'ACTIVE' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="epf-account-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                 <span style={{
@@ -315,7 +320,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
             </div>
             <button
               onClick={() => setShowConfigure(true)}
-              style={{ ...ghostBtnStyle, padding: '5px 10px', fontSize: '12px' }}
+              style={{ ...ghostBtnStyle, padding: '5px 10px', fontSize: '12px', flexShrink: 0 }}
             >
               Edit
             </button>
@@ -324,14 +329,14 @@ export default function EPFTab({ onCorpusChange }: Props) {
       </div>
 
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
+      <div className="epf-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
         {([
           { label: 'Current corpus',    value: formatINR(totalCorpus) },
           { label: 'Employee balance',  value: formatINR(account.employeeBalance) },
           { label: 'Employer balance',  value: formatINR(account.employerBalance) },
           { label: 'Interest rate',     value: `${account.interestRate}% p.a.` },
         ] as const).map(card => (
-          <div key={card.label} style={{
+          <div key={card.label} className="epf-stat-card" style={{
             background: 'var(--color-surface)',
             border: '0.5px solid var(--color-border)',
             borderRadius: '10px',
@@ -340,7 +345,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
             <div style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
               {card.label}
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+            <div className="epf-stat-value" style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
               {card.value}
             </div>
           </div>
@@ -348,7 +353,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
       </div>
 
       {/* ── Main grid ───────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
+      <div className="epf-main-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
 
         {/* Left: Contribution history */}
         <div style={{
@@ -363,13 +368,13 @@ export default function EPFTab({ onCorpusChange }: Props) {
           </div>
 
           {/* Table header */}
-          <div style={{
+          <div className="epf-txn-grid" style={{
             display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', gap: '8px',
             background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)',
             padding: '8px 0',
           }}>
             {(['Month', 'Date', 'Employee', 'Employer', 'Wages'] as const).map((h, i) => (
-              <div key={h} style={{
+              <div key={h} className={h === 'Wages' ? 'epf-wages-col' : undefined} style={{
                 fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px',
                 color: 'var(--color-text-muted)',
                 textAlign: i >= 2 ? 'right' : 'left',
@@ -387,7 +392,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
                 Upload your UAN passbook to see contribution history
               </div>
             ) : displayTxns.map((txn, i) => (
-              <div key={txn.id} style={{
+              <div key={txn.id} className="epf-txn-grid" style={{
                 display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', gap: '8px',
                 padding: '10px 0',
                 borderBottom: i < displayTxns.length - 1 ? '0.5px solid var(--color-border-subtle)' : 'none',
@@ -413,7 +418,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
                 <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {formatINR(txn.employerAmount)}
                 </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                <div className="epf-wages-col" style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {txn.wages !== null ? formatINR(txn.wages) : '—'}
                 </div>
               </div>

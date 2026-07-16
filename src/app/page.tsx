@@ -385,7 +385,7 @@ export default function DashboardPage() {
   return (
     <>
       {/* ── ROW 1: Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div className="dashboard-header-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--color-text-muted)', letterSpacing: '0.8px', marginBottom: '4px' }}>
             Net worth · {monthYear}
@@ -394,7 +394,7 @@ export default function DashboardPage() {
           {loading ? (
             <div style={{ ...SK, width: 200, height: 40, marginBottom: 8 }} />
           ) : (
-            <div style={{ fontSize: '38px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-1px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            <div className="dashboard-header-amount" style={{ fontSize: '38px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-1px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
               {formatINR(summary?.totalNetWorth ?? 0)}
             </div>
           )}
@@ -403,7 +403,7 @@ export default function DashboardPage() {
             {loading ? (
               <div style={{ ...SK, width: 140, height: 22, borderRadius: '20px' }} />
             ) : (
-              <span style={{
+              <span className="dashboard-header-gain" style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                 background: isPositive ? '#F0FDF6' : 'var(--color-loss-subtle)',
                 color: isPositive ? '#15803D' : 'var(--color-loss)',
@@ -414,14 +414,14 @@ export default function DashboardPage() {
               </span>
             )}
             {!loading && (
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+              <span className="dashboard-header-meta" style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                 Invested {formatINR(summary?.totalInvested ?? 0)}
               </span>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="dashboard-header-actions" style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={() => setModal(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '6px', border: '0.5px solid var(--btn-ghost-border)', background: 'transparent', color: 'var(--btn-ghost-text)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', transition: 'border-color 160ms ease' }}

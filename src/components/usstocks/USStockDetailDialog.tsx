@@ -130,6 +130,7 @@ export default function USStockDetailDialog({ stock, onClose, onEdit, onDelete, 
       style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--overlay-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{ background: 'var(--color-surface)', borderRadius: '12px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}
       >

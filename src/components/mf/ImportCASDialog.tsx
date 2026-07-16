@@ -121,6 +121,7 @@ export default function ImportCASDialog({ onClose, onSuccess }: Props) {
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',

@@ -226,6 +226,7 @@ export default function AddEditFundDialog({ mode, fund, onClose, onSuccess }: Pr
       }}
     >
       <div
+        className="dialog-panel"
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--color-bg)',
