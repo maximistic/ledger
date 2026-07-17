@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       source?: unknown; amfiCode?: unknown; fundHouse?: unknown; fundCategory?: unknown
     }
 
-    console.log('[POST /api/mf] body:', JSON.stringify(body))
+    console.log('POST /api/mf body:', JSON.stringify(body))
 
     const { name, isin, folioNumber, platform, source, amfiCode, fundHouse, fundCategory } = body
 
@@ -170,10 +170,11 @@ export async function POST(request: Request) {
       },
     })
 
+    console.log('Fund created:', fund.id)
     return NextResponse.json({ fund }, { status: 201 })
   } catch (error) {
-    console.error('[POST /api/mf] error:', error)
-    console.error('[POST /api/mf] details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
+    console.error('POST /api/mf error:', error)
+    console.error('POST /api/mf details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
     return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
   }
 }

@@ -8,8 +8,15 @@ interface Props {
   onSuccess: () => void
 }
 
-function cleanError(msg?: string): string {
+function friendlyError(msg?: string): string {
   if (!msg) return 'Something went wrong. Please try again.'
+  const lower = msg.toLowerCase()
+  if (lower.includes('not available') || lower.includes('not installed') || lower.includes('cas parser'))
+    return 'CAS import is not available in production yet. Please add funds manually for now.'
+  if (lower.includes('wrong password') || lower.includes('invalid password') || lower.includes('incorrect password'))
+    return 'Incorrect PDF password. Try: PAN + DOB (e.g. ABCDE1234F01011990)'
+  if (lower.includes('no fund') || lower.includes('no data') || lower.includes('no mutual fund'))
+    return 'No mutual fund data found in this PDF. Make sure you downloaded a Detailed CAS.'
   if (msg.includes('PrismaClient') || msg.includes('prisma') || msg.length > 200)
     return 'Something went wrong. Please try again.'
   return msg
@@ -95,7 +102,7 @@ export default function ImportCASDialog({ onClose, onSuccess }: Props) {
         errors: string[]; error?: string
       }
       if (!res.ok) {
-        setError(cleanError(data.error))
+        setError(friendlyError(data.error))
         return
       }
       setResult(data)
@@ -270,7 +277,18 @@ export default function ImportCASDialog({ onClose, onSuccess }: Props) {
               )}
 
               {error && (
-                <div style={{ fontSize: '12px', color: 'var(--color-loss)', marginTop: '10px' }}>{error}</div>
+                <div style={{
+                  marginTop: '12px',
+                  background: '#FFF5F5',
+                  border: '0.5px solid #FECDD3',
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  color: '#DC2626',
+                  fontSize: '13px',
+                  lineHeight: 1.5,
+                }}>
+                  {error}
+                </div>
               )}
             </>
           )}
@@ -298,7 +316,7 @@ export default function ImportCASDialog({ onClose, onSuccess }: Props) {
                 style={{ ...primaryBtn, opacity: !canImport ? 0.6 : 1, cursor: !canImport ? 'not-allowed' : 'pointer' }}
               >
                 {loading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                {loading ? 'Importing…' : 'Import'}
+                {loading ? 'Parsing PDF…' : 'Import'}
               </button>
             </>
           )}

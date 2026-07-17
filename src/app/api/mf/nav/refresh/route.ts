@@ -96,7 +96,7 @@ export async function POST() {
       }
 
       if (!amfiCode) {
-        failed++
+        skipped++
         continue
       }
 

@@ -132,13 +132,28 @@ export default function AddEditFundDialog({ mode, fund, onClose, onSuccess }: Pr
     }
   }
 
-  function selectResult(r: SearchResult) {
+  async function selectResult(r: SearchResult) {
     setFundQuery(r.schemeName)
     setName(r.schemeName)
     setAmfiCode(r.amfiCode)
     setFundHouse(r.fundHouse)
     setDropdownOpen(false)
     setErrors(prev => ({ ...prev, name: '' }))
+    console.log('Fund selected:', { name: r.schemeName, amfiCode: r.amfiCode, fundHouse: r.fundHouse })
+    // Fetch full metadata in background — auto-fill category
+    try {
+      const metaRes = await fetch(
+        `https://api.mfapi.in/mf/${r.amfiCode}`,
+        { signal: AbortSignal.timeout(5000) },
+      )
+      if (metaRes.ok) {
+        const metaData = await metaRes.json() as { meta?: { fund_house?: string; scheme_category?: string } }
+        if (metaData.meta?.fund_house) setFundHouse(metaData.meta.fund_house)
+        if (metaData.meta?.scheme_category) setFundCategory(metaData.meta.scheme_category)
+      }
+    } catch {
+      // metadata fetch failed — fields stay as manually entered
+    }
   }
 
   function handleSearchKeyDown(e: React.KeyboardEvent) {
@@ -166,6 +181,7 @@ export default function AddEditFundDialog({ mode, fund, onClose, onSuccess }: Pr
   }
 
   async function handleSubmit() {
+    console.log('Submit called with:', { name, amfiCode, units, avgNav, investedValue: invested })
     if (!validate()) return
     setSubmitting(true)
     setSubmitError('')
@@ -189,6 +205,7 @@ export default function AddEditFundDialog({ mode, fund, onClose, onSuccess }: Pr
       const url    = mode === 'add' ? '/api/mf' : `/api/mf/${fund!.id}`
       const method = mode === 'add' ? 'POST' : 'PUT'
 
+      console.log('Making API call to', url)
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
