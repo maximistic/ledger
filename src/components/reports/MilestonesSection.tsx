@@ -238,7 +238,7 @@ export default function MilestonesSection({ onLoaded }: Props) {
                   </div>
                 </button>
                 <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden', marginTop: '7px' }}>
-                  <div style={{ height: '100%', width: `${m.progressPct}%`, background: m.isAchieved ? '#16A34A' : 'var(--color-text-primary)', borderRadius: '2px', transition: 'width 600ms ease' }} />
+                  <div className={m.isAchieved ? 'milestone-bar-achieved' : 'milestone-bar-progress'} style={{ height: '100%', width: `${m.progressPct}%`, borderRadius: '2px', transition: 'width 600ms ease' }} />
                 </div>
               </div>
 
@@ -246,11 +246,11 @@ export default function MilestonesSection({ onLoaded }: Props) {
               <div style={{ flexShrink: 0, textAlign: 'right', minWidth: '80px' }}>
                 {m.isAchieved ? (
                   <>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#F0FDF4', color: '#16A34A', display: 'inline-block', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: 'var(--color-gain-subtle)', color: 'var(--color-gain)', display: 'inline-block', marginBottom: '2px' }}>
                       ✓ Achieved
                     </span>
                     {m.achievedDate && (
-                      <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                      <div className="milestone-text-achieved" style={{ fontSize: '10.5px', marginTop: '2px' }}>
                         {formatDateShort(m.achievedDate)}
                       </div>
                     )}

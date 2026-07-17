@@ -196,7 +196,7 @@ export default function CashflowSection() {
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
             {(['Date', 'Transaction', 'Type', 'Amount'] as const).map((h, i) => (
-              <div key={h} style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500, color: 'var(--color-text-muted)', textAlign: i === 3 ? 'right' : 'left' }}>
+              <div key={h} style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, color: 'var(--color-text-muted)', textAlign: i === 3 ? 'right' : 'left' }}>
                 {h}
               </div>
             ))}

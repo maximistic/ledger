@@ -66,7 +66,7 @@ const headerCell: React.CSSProperties = {
   color: 'var(--color-text-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.5px',
-  fontWeight: 500,
+  fontWeight: 600,
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
