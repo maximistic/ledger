@@ -95,8 +95,10 @@ export async function POST(request: Request) {
     console.log('[POST /api/mf] created fund:', fund.id)
 
     if (fund.amfiCode) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-      fetch(`${appUrl}/api/mf/${fund.id}/refresh-meta`).catch(() => {})
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      fetch(`${baseUrl}/api/mf/${fund.id}/refresh-meta`, { method: 'GET' }).catch(err => {
+        console.log('[POST /api/mf] Background refresh failed:', err)
+      })
     }
 
     return NextResponse.json({ fund }, { status: 201 })
