@@ -1,32 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server'
+export const runtime = 'nodejs'
 
-interface MFSearchResult {
-  schemeCode: number
-  schemeName: string
-  fundHouse: string
-  schemeType: string
-}
+import { NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
-  const q = request.nextUrl.searchParams.get('q') ?? ''
+const cache = new Map<string, { results: unknown[]; ts: number }>()
+const TTL   = 5 * 60 * 1000
 
-  if (!q.trim()) return NextResponse.json({ results: [] })
-
+export async function GET(req: Request) {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/search?q=${encodeURIComponent(q.trim())}`)
+    const q = new URL(req.url).searchParams.get('q')?.trim() ?? ''
+    if (q.length < 1) return NextResponse.json({ results: [] })
+
+    const key    = q.toLowerCase()
+    const cached = cache.get(key)
+    if (cached && Date.now() - cached.ts < TTL)
+      return NextResponse.json({ results: cached.results })
+
+    const res = await fetch(
+      `https://api.mfapi.in/mf/search?q=${encodeURIComponent(q)}`,
+      { signal: AbortSignal.timeout(10000) },
+    )
     if (!res.ok) return NextResponse.json({ results: [] })
 
-    const data = await res.json() as MFSearchResult[]
+    const data = await res.json() as unknown[]
     if (!Array.isArray(data)) return NextResponse.json({ results: [] })
 
-    const results = data.slice(0, 6).map(r => ({
-      amfiCode:   String(r.schemeCode),
-      schemeName: r.schemeName,
-      fundHouse:  r.fundHouse,
-    }))
+    const results = data.slice(0, 8).map((r: unknown) => {
+      const row = r as { schemeCode: number; schemeName: string; fundHouse?: string }
+      return { amfiCode: String(row.schemeCode), schemeName: row.schemeName, fundHouse: row.fundHouse ?? '' }
+    })
 
+    cache.set(key, { results, ts: Date.now() })
     return NextResponse.json({ results })
-  } catch {
+  } catch (err) {
+    console.error('[GET /api/mf/search]', err)
     return NextResponse.json({ results: [] })
   }
 }

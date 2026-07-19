@@ -1,12 +1,16 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function DELETE() {
   try {
-    const result = await prisma.mutualFund.deleteMany()
-    return NextResponse.json({ success: true, deleted: result.count })
+    await prisma.mutualFundTransaction.deleteMany()
+    await prisma.sipConfig.deleteMany()
+    await prisma.mutualFund.deleteMany()
+    return NextResponse.json({ success: true })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[DELETE /api/mf/all]', error)
+    return NextResponse.json({ error: 'Failed to delete all funds' }, { status: 500 })
   }
 }

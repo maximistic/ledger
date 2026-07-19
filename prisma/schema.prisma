@@ -47,7 +47,7 @@ model StockTransaction {
 model MutualFund {
   id               String                  @id @default(cuid())
   name             String
-  isin             String?                 @unique
+  isin             String?
   folioNumber      String?
   amfiCode         String?
   platform         String?
@@ -60,9 +60,10 @@ model MutualFund {
   currentNav       Float                   @default(0)
   investedValue    Float                   @default(0)
   currentValue     Float                   @default(0)
-  hasActiveSip     Boolean                 @default(false)
-  lastNavUpdatedAt DateTime?
-  source           String                  @default("MANUAL")
+  hasActiveSip        Boolean                 @default(false)
+  lastNavUpdatedAt    DateTime?
+  firstInvestmentDate DateTime?
+  source              String                  @default("MANUAL")
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   transactions     MutualFundTransaction[]

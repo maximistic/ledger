@@ -1,180 +1,109 @@
-import { NextRequest, NextResponse } from 'next/server'
+export const runtime = 'nodejs'
+
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { mfApiError } from '@/lib/mfUtils'
 
-interface MFApiMeta {
-  meta: {
-    fund_house: string
-    scheme_category: string
-    scheme_code: number
-    scheme_name: string
-  }
-  data: Array<{ date: string; nav: string }>
-  status: string
-}
+const BUY_TYPES  = new Set(['SIP', 'LUMPSUM', 'SWITCH_IN', 'DIVIDEND'])
+const SELL_TYPES = new Set(['REDEMPTION', 'SWITCH_OUT'])
 
-async function fetchMFApiMeta(amfiCode: string): Promise<{ fundHouse?: string; fundCategory?: string } | null> {
+export async function GET() {
   try {
-    const res = await fetch(`https://api.mfapi.in/mf/${amfiCode}`, {
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) return null
-    const data = await res.json() as MFApiMeta
-    if (data.status !== 'SUCCESS') return null
-    return {
-      fundHouse:    data.meta.fund_house || undefined,
-      fundCategory: data.meta.scheme_category || undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const type = request.nextUrl.searchParams.get('type')
-
-    const where =
-      type === 'SIP'       ? { hasActiveSip: true }
-      : type === 'LUMPSUM' ? { hasActiveSip: false }
-      : undefined
-
     const funds = await prisma.mutualFund.findMany({
-      where,
       orderBy: { name: 'asc' },
       include: {
-        _count:    { select: { transactions: true } },
-        sipConfig: true,
+        sipConfig:    true,
+        transactions: { select: { type: true } },
       },
     })
 
-    const result = funds.map(({ _count, ...fund }) => {
+    const result = funds.map(({ transactions, ...fund }) => {
       const gainLoss    = fund.currentValue - fund.investedValue
-      const gainLossPct = fund.investedValue > 0
-        ? (gainLoss / fund.investedValue) * 100
-        : 0
-      return { ...fund, gainLoss, gainLossPct, transactionCount: _count.transactions }
+      const gainLossPct = fund.investedValue > 0 ? (gainLoss / fund.investedValue) * 100 : 0
+      const hasSIPTx     = transactions.some(t => t.type === 'SIP')
+      const hasLumpsumTx = transactions.some(t => t.type === 'LUMPSUM')
+      return { ...fund, gainLoss, gainLossPct, hasSIPTx, hasLumpsumTx }
     })
 
-    const totalInvested     = result.reduce((s, f) => s + f.investedValue, 0)
     const totalCurrentValue = result.reduce((s, f) => s + f.currentValue, 0)
+    const totalInvested     = result.reduce((s, f) => s + f.investedValue, 0)
     const totalGainLoss     = totalCurrentValue - totalInvested
     const totalGainLossPct  = totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0
 
     return NextResponse.json({
       funds: result,
-      totals: { totalInvested, totalCurrentValue, totalGainLoss, totalGainLossPct, count: result.length },
+      totals: { totalCurrentValue, totalInvested, totalGainLoss, totalGainLossPct, count: result.length },
     })
   } catch (error) {
     console.error('[GET /api/mf]', error)
-    return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to load funds' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json() as {
-      name?: unknown; isin?: unknown; folioNumber?: unknown; platform?: unknown
-      units?: unknown; avgNav?: unknown; currentNav?: unknown; investedValue?: unknown
-      source?: unknown; amfiCode?: unknown; fundHouse?: unknown; fundCategory?: unknown
+      name?: unknown; amfiCode?: unknown; isin?: unknown; folioNumber?: unknown
+      platform?: unknown; fundHouse?: unknown; fundCategory?: unknown
+      units?: unknown; avgNav?: unknown; investedValue?: unknown
+      firstInvestmentDate?: unknown; source?: unknown
     }
 
-    console.log('POST /api/mf body:', JSON.stringify(body))
+    console.log('[POST /api/mf] body:', JSON.stringify(body))
 
-    const { name, isin, folioNumber, platform, source, amfiCode, fundHouse, fundCategory } = body
+    const name          = typeof body.name === 'string' ? body.name.trim() : ''
+    const units         = parseFloat(String(body.units ?? ''))
+    const avgNav        = parseFloat(String(body.avgNav ?? ''))
+    const investedValue = parseFloat(String(body.investedValue ?? ''))
 
-    const units = parseFloat(String(body.units))
-    const avgNav = parseFloat(String(body.avgNav))
-    const investedValue = parseFloat(String(body.investedValue))
-    const currentNav = body.currentNav
-      ? parseFloat(String(body.currentNav))
-      : avgNav
+    if (!name)
+      return NextResponse.json({ error: 'Name required' }, { status: 400 })
+    if (!Number.isFinite(units) || units <= 0)
+      return NextResponse.json({ error: 'Units must be positive' }, { status: 400 })
+    if (!Number.isFinite(avgNav) || avgNav <= 0)
+      return NextResponse.json({ error: 'Avg NAV must be positive' }, { status: 400 })
+    if (!Number.isFinite(investedValue) || investedValue <= 0)
+      return NextResponse.json({ error: 'Invested value must be positive' }, { status: 400 })
 
-    if (!name || typeof name !== 'string' || !name.trim())
-      return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    if (!Number.isFinite(units) || units <= 0) {
-      return NextResponse.json(
-        { error: 'Units must be a positive number' },
-        { status: 400 }
-      )
-    }
-    if (!Number.isFinite(avgNav) || avgNav <= 0) {
-      return NextResponse.json(
-        { error: 'Avg NAV must be a positive number' },
-        { status: 400 }
-      )
-    }
-    if (!Number.isFinite(investedValue) || investedValue <= 0) {
-      return NextResponse.json(
-        { error: 'Invested value must be a positive number' },
-        { status: 400 }
-      )
+    let firstDate: Date | null = null
+    if (typeof body.firstInvestmentDate === 'string' && body.firstInvestmentDate) {
+      const d = new Date(body.firstInvestmentDate)
+      if (!isNaN(d.getTime())) firstDate = d
     }
 
-    const normalizedIsin = typeof isin === 'string' && isin.trim()
-      ? isin.trim().toUpperCase()
-      : null
-
-    if (normalizedIsin) {
-      const existing = await prisma.mutualFund.findUnique({ where: { isin: normalizedIsin } })
-      if (existing) return NextResponse.json({ error: 'Fund with this ISIN already exists' }, { status: 400 })
-    }
-
-    const cn = Number.isFinite(currentNav) && currentNav > 0 ? currentNav : avgNav
-    const cv = units * cn
-
-    const normalizedAmfiCode = typeof amfiCode === 'string' && amfiCode.trim()
-      ? amfiCode.trim()
-      : null
-
-    let metadata: Record<string, unknown> = {}
-    if (amfiCode) {
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 4000)
-        const metaRes = await fetch(
-          `https://api.mfapi.in/mf/${amfiCode}`,
-          { signal: controller.signal }
-        )
-        clearTimeout(timeout)
-        if (metaRes.ok) {
-          const metaData = await metaRes.json()
-          metadata = {
-            fundHouse: metaData.meta?.fund_house ?? null,
-            fundCategory: metaData.meta?.scheme_category ?? null,
-            expenseRatio: metaData.meta?.scheme_type ?? null,
-          }
-        }
-      } catch {
-        // mfapi.in unavailable — proceed without metadata
-      }
-    }
+    const str = (v: unknown) =>
+      typeof v === 'string' && v.trim() ? v.trim() : null
 
     const fund = await prisma.mutualFund.create({
       data: {
-        name:         (name as string).trim(),
-        isin:         normalizedIsin,
-        folioNumber:  typeof folioNumber === 'string' ? folioNumber.trim() || null : null,
-        platform:     typeof platform    === 'string' ? platform.trim() || null    : null,
-        amfiCode:     normalizedAmfiCode,
-        fundHouse:    typeof fundHouse    === 'string' && fundHouse.trim()
-          ? fundHouse.trim() : (metadata.fundHouse as string | null) ?? null,
-        fundCategory: typeof fundCategory === 'string' && fundCategory.trim()
-          ? fundCategory.trim() : (metadata.fundCategory as string | null) ?? null,
+        name,
+        amfiCode:           str(body.amfiCode),
+        isin:               str(body.isin)?.toUpperCase() ?? null,
+        folioNumber:        str(body.folioNumber),
+        platform:           str(body.platform),
+        fundHouse:          str(body.fundHouse),
+        fundCategory:       str(body.fundCategory),
         units,
         avgNav,
-        currentNav:    cn,
+        currentNav:         avgNav,
         investedValue,
-        currentValue:  cv,
-        source:        typeof source === 'string' && source.trim() ? source.trim() : 'MANUAL',
+        currentValue:       units * avgNav,
+        firstInvestmentDate: firstDate,
+        source:             str(body.source) ?? 'MANUAL',
       },
     })
 
-    console.log('Fund created:', fund.id)
+    console.log('[POST /api/mf] created fund:', fund.id)
+
+    if (fund.amfiCode) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      fetch(`${appUrl}/api/mf/${fund.id}/refresh-meta`).catch(() => {})
+    }
+
     return NextResponse.json({ fund }, { status: 201 })
   } catch (error) {
-    console.error('POST /api/mf error:', error)
-    console.error('POST /api/mf details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
-    return NextResponse.json({ error: mfApiError(error) }, { status: 500 })
+    console.error('[POST /api/mf]', error)
+    return NextResponse.json({ error: 'Failed to create fund' }, { status: 500 })
   }
 }
+
+export { BUY_TYPES, SELL_TYPES }

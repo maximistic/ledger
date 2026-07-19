@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, RefreshCw, TrendingUp, Upload, Pencil } from 'lucide-react'
-import { formatINR, formatPctSigned, formatShortSigned } from '@/lib/utils'
-import FundDetailDialog from './FundDetailDialog'
+import { Plus, RefreshCw, TrendingUp, Upload } from 'lucide-react'
+import { formatINR, formatShortSigned, formatPctSigned } from '@/lib/utils'
 import AddEditFundDialog from './AddEditFundDialog'
+import FundDetailDialog from './FundDetailDialog'
 import ImportCASDialog from './ImportCASDialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -22,25 +22,31 @@ export interface MFItem {
   investedValue: number; currentValue: number
   gainLoss: number; gainLossPct: number
   hasActiveSip: boolean; lastNavUpdatedAt: string | null
-  sipConfig: SipConfig | null; transactionCount: number
+  firstInvestmentDate: string | null
+  sipConfig: SipConfig | null
+  hasSIPTx: boolean; hasLumpsumTx: boolean
 }
 
 interface Totals {
-  totalInvested: number; totalCurrentValue: number
+  totalCurrentValue: number; totalInvested: number
   totalGainLoss: number; totalGainLossPct: number; count: number
 }
 
 interface Props {
-  onStatsChange?: (totals: Totals) => void
+  onSummaryRefresh?: () => void
 }
 
-// ─── Grid ─────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const gridCols = '2.4fr 0.8fr 0.8fr 1fr 1fr 32px'
+const gridCols = '2.4fr 0.7fr 0.9fr 0.9fr 1fr 1fr 1fr'
 
 const headerCell: React.CSSProperties = {
   fontSize: '10.5px', color: 'var(--color-text-muted)',
   textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600,
+}
+
+const DEFAULT_TOTALS: Totals = {
+  totalCurrentValue: 0, totalInvested: 0, totalGainLoss: 0, totalGainLossPct: 0, count: 0,
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -50,34 +56,33 @@ function SkeletonTable() {
     <div style={{ overflowX: 'auto' }}>
       <div style={{
         background: 'var(--color-surface)', border: '0.5px solid var(--color-border)',
-        borderRadius: '10px', overflow: 'hidden', minWidth: '580px',
+        borderRadius: '10px', overflow: 'hidden', minWidth: '700px',
       }}>
         <div style={{
           display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
           background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)',
           padding: '10px 20px',
         }}>
-          {['Fund', 'Units', 'Avg NAV', 'Current NAV', 'Value', ''].map(h => (
+          {['Fund', 'Units', 'Avg NAV', 'Cur NAV', 'Invested', 'Current', 'P&L'].map(h => (
             <div key={h} style={headerCell}>{h}</div>
           ))}
         </div>
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} style={{
             display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
             padding: '14px 20px', alignItems: 'center',
-            borderBottom: i < 3 ? '0.5px solid var(--color-border-subtle)' : 'none',
+            borderBottom: i < 4 ? '0.5px solid var(--color-border-subtle)' : 'none',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
-              <div>
-                <div style={{ height: 13, width: 140, borderRadius: 4, background: 'var(--color-bg)', marginBottom: 5, animation: 'pulse 1.4s ease infinite' }} />
-                <div style={{ height: 11, width: 80, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
+              <div style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ height: 13, width: '80%', borderRadius: 4, background: 'var(--color-bg)', marginBottom: 5, animation: 'pulse 1.4s ease infinite' }} />
+                <div style={{ height: 11, width: '50%', borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
               </div>
             </div>
-            {Array.from({ length: 4 }).map((_, j) => (
+            {Array.from({ length: 6 }).map((_, j) => (
               <div key={j} style={{ height: 13, borderRadius: 4, background: 'var(--color-bg)', animation: 'pulse 1.4s ease infinite' }} />
             ))}
-            <div />
           </div>
         ))}
       </div>
@@ -97,11 +102,11 @@ function EmptyFunds({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
       <TrendingUp size={36} color="var(--color-text-muted)" strokeWidth={1.5} />
       <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>No mutual funds yet</div>
       <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-        Upload your CAS or add a fund manually
+        Import your CAS or add a fund manually
       </div>
       <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-        <button onClick={onImport} style={ghostBtnStyle}>Import CAS</button>
-        <button onClick={onAdd} style={primaryBtnStyle}>Add fund</button>
+        <button onClick={onImport} style={ghostBtn}>Import CAS</button>
+        <button onClick={onAdd} style={primaryBtn}>Add fund</button>
       </div>
     </div>
   )
@@ -112,11 +117,9 @@ function EmptyFunds({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
 function FundsTable({
   funds,
   onRowClick,
-  onEditClick,
 }: {
   funds: MFItem[]
   onRowClick: (f: MFItem) => void
-  onEditClick: (f: MFItem) => void
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
@@ -124,7 +127,7 @@ function FundsTable({
     <div style={{ overflowX: 'auto' }}>
       <div style={{
         background: 'var(--color-surface)', border: '0.5px solid var(--color-border)',
-        borderRadius: '10px', overflow: 'hidden', minWidth: '580px',
+        borderRadius: '10px', overflow: 'hidden', minWidth: '700px',
       }}>
         {/* Header */}
         <div style={{
@@ -135,18 +138,23 @@ function FundsTable({
           <div style={headerCell}>Fund</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>Units</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>Avg NAV</div>
-          <div style={{ ...headerCell, textAlign: 'right' }}>Current NAV</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>Cur NAV</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>Invested</div>
+          <div style={{ ...headerCell, textAlign: 'right' }}>Current</div>
           <div style={{ ...headerCell, textAlign: 'right' }}>P&amp;L</div>
-          <div />
         </div>
 
         {funds.map((fund, i) => {
-          const isLast     = i === funds.length - 1
-          const gainColor  = fund.gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
-          const isHovered  = hoveredId === fund.id
-          const navStale   = fund.currentNav === 0
-          const avatarText = fund.name.split(' ')[0].slice(0, 6).toUpperCase()
-          const pnlSign    = fund.gainLoss >= 0 ? '+' : '−'
+          const isLast    = i === funds.length - 1
+          const gainColor = fund.gainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+          const isHovered = hoveredId === fund.id
+          const navStale  = fund.currentNav === 0
+          const initials  = fund.name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || fund.name.slice(0, 2).toUpperCase()
+          const currentColor =
+            navStale ? 'var(--color-text-muted)'
+            : fund.currentValue > fund.investedValue ? 'var(--color-gain)'
+            : fund.currentValue < fund.investedValue ? 'var(--color-loss)'
+            : 'var(--color-text-primary)'
 
           return (
             <div
@@ -156,39 +164,48 @@ function FundsTable({
               onClick={() => onRowClick(fund)}
               style={{
                 display: 'grid', gridTemplateColumns: gridCols, gap: '8px',
-                padding: '12px 20px',
+                padding: '13px 20px',
                 borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
                 alignItems: 'center',
                 cursor: 'pointer',
-                background: isHovered ? '#FAFAF8' : 'transparent',
+                background: isHovered ? 'var(--color-surface-raised)' : 'transparent',
                 transition: 'background 120ms ease',
               }}
             >
-              {/* Fund name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Fund cell */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <div style={{
-                  width: '36px', height: '36px', minWidth: '36px', flexShrink: 0,
-                  borderRadius: '8px', background: 'var(--color-surface-raised)',
+                  width: '38px', height: '38px', minWidth: '38px', borderRadius: '8px',
+                  background: 'var(--color-surface-raised)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '9px', fontWeight: 700, color: '#555',
+                  overflow: 'hidden', padding: '0 4px', flexShrink: 0,
                 }}>
-                  {avatarText}
+                  {initials}
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{
                     fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 500,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box',
+                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                   }}>
                     {fund.name}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
-                    {fund.fundHouse ?? (fund.platform ?? 'Mutual Fund')}
-                    {fund.hasActiveSip && (
+                    {fund.platform ?? '—'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }}>
+                    {(fund.hasSIPTx || fund.hasActiveSip) && (
                       <span style={{
-                        marginLeft: '5px', fontSize: '9px', fontWeight: 700,
-                        padding: '1px 4px', borderRadius: '3px',
-                        background: '#F0FDF4', color: '#16A34A',
+                        fontSize: '9.5px', fontWeight: 700, padding: '1.5px 6px',
+                        borderRadius: '3px', background: '#F0FDF4', color: '#16A34A',
                       }}>SIP</span>
+                    )}
+                    {fund.hasLumpsumTx && (
+                      <span style={{
+                        fontSize: '9.5px', fontWeight: 700, padding: '1.5px 6px',
+                        borderRadius: '3px', background: '#EFF6FF', color: '#2563EB',
+                      }}>Lumpsum</span>
                     )}
                   </div>
                 </div>
@@ -218,6 +235,16 @@ function FundsTable({
                 )}
               </div>
 
+              {/* Invested */}
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {formatINR(fund.investedValue)}
+              </div>
+
+              {/* Current */}
+              <div style={{ fontSize: '13px', fontWeight: 500, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: currentColor }}>
+                {navStale ? '—' : formatINR(fund.currentValue)}
+              </div>
+
               {/* P&L */}
               <div style={{ textAlign: 'right' }}>
                 {navStale ? (
@@ -225,31 +252,13 @@ function FundsTable({
                 ) : (
                   <>
                     <div style={{ fontSize: '13px', fontWeight: 500, color: gainColor, fontVariantNumeric: 'tabular-nums' }}>
-                      {pnlSign}₹{Math.abs(fund.gainLoss).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatShortSigned(fund.gainLoss)}
                     </div>
                     <div style={{ fontSize: '10.5px', color: gainColor, marginTop: '1px' }}>
                       {formatPctSigned(fund.gainLossPct)}
                     </div>
                   </>
                 )}
-              </div>
-
-              {/* Edit icon */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <button
-                  onClick={e => { e.stopPropagation(); onEditClick(fund) }}
-                  style={{
-                    width: '26px', height: '26px', borderRadius: '5px',
-                    border: '0.5px solid var(--color-border)',
-                    background: 'var(--color-bg)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--color-text-muted)', cursor: 'pointer',
-                    opacity: isHovered ? 1 : 0,
-                    transition: 'opacity 120ms ease',
-                  }}
-                >
-                  <Pencil size={12} />
-                </button>
               </div>
             </div>
           )
@@ -259,63 +268,54 @@ function FundsTable({
   )
 }
 
-// ─── Filter strip ─────────────────────────────────────────────────────────────
+// ─── Main tab ─────────────────────────────────────────────────────────────────
 
 type Filter = 'all' | 'sip' | 'lumpsum'
 
-// ─── Main tab ─────────────────────────────────────────────────────────────────
-
-export default function MutualFundsTab({ onStatsChange }: Props) {
+export default function MutualFundsTab({ onSummaryRefresh }: Props) {
   const [funds, setFunds] = useState<MFItem[]>([])
-  const [totals, setTotals] = useState<Totals>({ totalInvested: 0, totalCurrentValue: 0, totalGainLoss: 0, totalGainLossPct: 0, count: 0 })
+  const [totals, setTotals] = useState<Totals>(DEFAULT_TOTALS)
   const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // NAV refresh
   const [refreshing, setRefreshing] = useState(false)
   const [refreshStatus, setRefreshStatus] = useState('')
   const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Dialogs
-  const [detailFund, setDetailFund] = useState<MFItem | null>(null)
-  const [editFund, setEditFund] = useState<MFItem | null>(null)
-  const [showAdd, setShowAdd] = useState(false)
+  const [showAdd, setShowAdd]       = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [selectedFund, setSelectedFund] = useState<MFItem | null>(null)
+  const [editFund, setEditFund]     = useState<MFItem | null>(null)
 
-  // Sync detailFund ref so fetchFunds can update it
-  const detailFundRef = useRef<MFItem | null>(null)
-  useEffect(() => { detailFundRef.current = detailFund }, [detailFund])
+  const onSummaryRef = useRef(onSummaryRefresh)
+  useEffect(() => { onSummaryRef.current = onSummaryRefresh }, [onSummaryRefresh])
 
-  // Stable ref for onStatsChange — prevents infinite re-render loop when parent
-  // passes an inline arrow function that gets recreated on every render.
-  const onStatsChangeRef = useRef(onStatsChange)
-  useEffect(() => { onStatsChangeRef.current = onStatsChange }, [onStatsChange])
+  const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
 
-  const fetchFunds = useCallback(async () => {
-    setLoading(true); setFetchError('')
-    try {
-      const typeParam = filter === 'sip' ? '?type=SIP' : filter === 'lumpsum' ? '?type=LUMPSUM' : ''
-      const res = await fetch(`/api/mf${typeParam}`)
-      const data = await res.json() as { funds?: MFItem[]; totals?: Totals; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Failed to load funds')
-      const freshFunds = data.funds ?? []
-      setFunds(freshFunds)
-      const t = data.totals ?? { totalInvested: 0, totalCurrentValue: 0, totalGainLoss: 0, totalGainLossPct: 0, count: 0 }
-      setTotals(t)
-      onStatsChangeRef.current?.(t)
-      if (detailFundRef.current) {
-        const fresh = freshFunds.find(f => f.id === detailFundRef.current!.id)
-        if (fresh) setDetailFund(fresh)
-      }
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Could not load funds. Please refresh.')
-    } finally {
-      setLoading(false)
-    }
-  }, [filter]) // onStatsChange intentionally excluded — accessed via ref
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setError(null)
 
-  useEffect(() => { fetchFunds() }, [fetchFunds])
+    fetch('/api/mf')
+      .then(r => r.json() as Promise<{ funds?: MFItem[]; totals?: Totals; error?: string }>)
+      .then(data => {
+        if (cancelled) return
+        const freshFunds = data.funds ?? []
+        setFunds(freshFunds)
+        setTotals(data.totals ?? DEFAULT_TOTALS)
+        setSelectedFund(prev => prev ? (freshFunds.find(f => f.id === prev.id) ?? null) : null)
+        if (refreshKey > 0) onSummaryRef.current?.()
+      })
+      .catch(err => {
+        console.error('fetchFunds error:', err)
+        if (!cancelled) setError('Could not load funds. Please try again.')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
+  }, [refreshKey]) // onSummaryRefresh excluded — accessed via ref
 
   async function handleNavRefresh() {
     setRefreshing(true); setRefreshStatus('')
@@ -325,28 +325,33 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
       setRefreshStatus(`Updated ${data.updated ?? 0} · Failed ${data.failed ?? 0} · Skipped ${data.skipped ?? 0}`)
       clearTimeout(refreshTimer.current)
       refreshTimer.current = setTimeout(() => setRefreshStatus(''), 4000)
-      await fetchFunds()
-    } catch {
+      refresh()
+    } catch (err) {
+      console.error('NAV refresh error:', err)
       setRefreshStatus('NAV refresh failed')
     } finally {
       setRefreshing(false)
     }
   }
 
+  const filtered = funds.filter(f =>
+    filter === 'sip'     ? (f.hasSIPTx || f.hasActiveSip)
+    : filter === 'lumpsum' ? f.hasLumpsumTx
+    : true
+  )
+
   const gainColor = totals.totalGainLoss >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
   return (
     <>
-      {/* ── Section header ───────────────────────────────────────────────── */}
+      {/* Section header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+          <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 600 }}>
             Mutual Funds
           </div>
           <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
-            {totals.totalCurrentValue > 0
-              ? formatINR(totals.totalCurrentValue)
-              : totals.totalInvested > 0 ? formatINR(totals.totalInvested) : '₹0'}
+            {formatINR(totals.totalCurrentValue > 0 ? totals.totalCurrentValue : totals.totalInvested)}
           </div>
           {!loading && funds.length > 0 && (
             <div style={{ fontSize: '13px', marginTop: '4px' }}>
@@ -366,49 +371,40 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {/* NAV refresh */}
             <button
               onClick={handleNavRefresh}
               disabled={refreshing}
-              style={{ ...ghostBtnStyle, gap: '5px', opacity: refreshing ? 0.7 : 1 }}
+              style={{ ...ghostBtn, gap: '5px', opacity: refreshing ? 0.7 : 1 }}
             >
               <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
               {refreshing ? 'Updating…' : 'Refresh NAV'}
             </button>
-
-            {/* Import */}
-            <button onClick={() => setShowImport(true)} style={ghostBtnStyle}>
+            <button onClick={() => setShowImport(true)} style={ghostBtn}>
               <Upload size={13} /> Import CAS
             </button>
-
-            {/* Add */}
-            <button onClick={() => setShowAdd(true)} style={primaryBtnStyle}>
+            <button onClick={() => setShowAdd(true)} style={primaryBtn}>
               <Plus size={13} /> Add fund
             </button>
           </div>
-
           {refreshStatus && (
             <div style={{ fontSize: '11.5px', color: 'var(--color-gain)' }}>{refreshStatus}</div>
           )}
         </div>
       </div>
 
-      {/* ── Filter strip ─────────────────────────────────────────────────── */}
+      {/* Filter pills */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
         {(['all', 'sip', 'lumpsum'] as Filter[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             style={{
-              padding: '5px 14px',
-              borderRadius: '6px',
-              border: '0.5px solid',
+              padding: '5px 14px', borderRadius: '6px', border: '0.5px solid',
               borderColor: filter === f ? 'var(--color-text-primary)' : 'var(--color-border)',
               background: filter === f ? 'var(--color-text-primary)' : 'var(--color-surface)',
               color: filter === f ? 'var(--color-surface)' : 'var(--color-text-secondary)',
               fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
-              fontWeight: filter === f ? 600 : 400,
-              transition: 'all 120ms ease',
+              fontWeight: filter === f ? 600 : 400, transition: 'all 120ms ease',
             }}
           >
             {f === 'all' ? 'All' : f === 'sip' ? 'SIP' : 'Lumpsum'}
@@ -416,33 +412,28 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
         ))}
       </div>
 
-      {/* ── Table / states ───────────────────────────────────────────────── */}
+      {/* Table / states */}
       {loading ? (
         <SkeletonTable />
-      ) : fetchError ? (
+      ) : error ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', fontSize: '13px', color: 'var(--color-loss)' }}>
-          {fetchError}
-          <button onClick={fetchFunds} style={ghostBtnStyle}>Retry</button>
+          {error}
+          <button onClick={refresh} style={ghostBtn}>Retry</button>
         </div>
       ) : funds.length === 0 ? (
         <EmptyFunds onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} />
       ) : (
-        <FundsTable
-          funds={funds}
-          onRowClick={f => setDetailFund(f)}
-          onEditClick={f => setEditFund(f)}
-        />
+        <FundsTable funds={filtered} onRowClick={setSelectedFund} />
       )}
 
-      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
-
-      {detailFund && (
+      {/* Dialogs */}
+      {selectedFund && (
         <FundDetailDialog
-          fund={detailFund}
-          onClose={() => setDetailFund(null)}
-          onEdit={() => { setEditFund(detailFund); setDetailFund(null) }}
-          onDelete={fetchFunds}
-          onRefresh={fetchFunds}
+          fund={selectedFund}
+          onClose={() => setSelectedFund(null)}
+          onEdit={() => { setEditFund(selectedFund); setSelectedFund(null) }}
+          onDelete={() => { refresh(); onSummaryRef.current?.() }}
+          onRefresh={refresh}
         />
       )}
 
@@ -450,7 +441,7 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
         <AddEditFundDialog
           mode="add"
           onClose={() => setShowAdd(false)}
-          onSuccess={() => { fetchFunds(); setShowAdd(false) }}
+          onSuccess={() => { refresh(); onSummaryRef.current?.(); setShowAdd(false) }}
         />
       )}
 
@@ -459,14 +450,14 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
           mode="edit"
           fund={editFund}
           onClose={() => setEditFund(null)}
-          onSuccess={() => { fetchFunds(); setEditFund(null) }}
+          onSuccess={() => { refresh(); onSummaryRef.current?.(); setEditFund(null) }}
         />
       )}
 
       {showImport && (
         <ImportCASDialog
           onClose={() => setShowImport(false)}
-          onSuccess={fetchFunds}
+          onSuccess={() => { refresh(); onSummaryRef.current?.() }}
         />
       )}
 
@@ -477,7 +468,7 @@ export default function MutualFundsTab({ onStatsChange }: Props) {
 
 // ─── Shared button styles ─────────────────────────────────────────────────────
 
-const ghostBtnStyle: React.CSSProperties = {
+const ghostBtn: React.CSSProperties = {
   padding: '7px 14px', borderRadius: '6px',
   border: '0.5px solid var(--color-border)',
   background: 'var(--color-surface)',
@@ -486,9 +477,8 @@ const ghostBtnStyle: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer',
 }
 
-const primaryBtnStyle: React.CSSProperties = {
-  padding: '7px 14px', borderRadius: '6px',
-  border: 'none',
+const primaryBtn: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: '6px', border: 'none',
   background: 'var(--color-text-primary)',
   color: 'var(--color-surface)',
   fontSize: '12.5px', fontFamily: 'inherit',

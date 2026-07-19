@@ -841,9 +841,7 @@ export default function AssetsPage() {
       <div style={{ flex: 1, minWidth: 0 }}>
 
         {activeTab === 'mf' ? (
-          <MutualFundsTab
-            onStatsChange={t => setMFSummary({ count: t.count, invested: t.totalInvested, currentValue: t.totalCurrentValue })}
-          />
+          <MutualFundsTab onSummaryRefresh={fetchSummaries} />
         ) : activeTab === 'stocks' ? (
           <>
             {/* Section header */}
