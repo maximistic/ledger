@@ -225,14 +225,36 @@ export async function GET() {
     const oSorted     = sortedByDate(oFlows, oDates)
     const overallXIRR = xirr(oSorted.flows, oSorted.dates)
 
+    // ── PER-CLASS CUSTOM XIRR ─────────────────────────────────────────────────
+    const customXIRRs = customClasses.map(cls => {
+      const cFlows: number[] = []
+      const cDates: Date[]   = []
+      for (const e of cls.entries) {
+        if (e.purchasePrice > 0 && e.purchaseDate) {
+          cFlows.push(-e.purchasePrice)
+          cDates.push(e.purchaseDate)
+        }
+      }
+      const classCV = cls.entries.reduce((s, e) => s + e.currentValue, 0)
+      if (cFlows.length > 0 && classCV > 0) {
+        cFlows.push(classCV)
+        cDates.push(today)
+      }
+      const cSorted    = sortedByDate(cFlows, cDates)
+      const classXIRR  = xirr(cSorted.flows, cSorted.dates)
+      console.log('[xirr] custom class', cls.name, '->', classXIRR)
+      return { id: cls.id, name: cls.name, xirr: toXirrPct(classXIRR) }
+    })
+
     return NextResponse.json({
-      overall: toXirrPct(overallXIRR),
-      stocks:  toXirrPct(stocksXIRR),
-      mf:      toXirrPct(mfXIRR),
-      epf:     toXirrPct(epfXIRR),
-      fd:      toXirrPct(fdXIRR),
-      rd:      toXirrPct(rdXIRR),
-      us:      toXirrPct(usXIRR),
+      overall:       toXirrPct(overallXIRR),
+      stocks:        toXirrPct(stocksXIRR),
+      mf:            toXirrPct(mfXIRR),
+      epf:           toXirrPct(epfXIRR),
+      fd:            toXirrPct(fdXIRR),
+      rd:            toXirrPct(rdXIRR),
+      us:            toXirrPct(usXIRR),
+      customClasses: customXIRRs,
     })
   } catch (error) {
     console.error('[GET /api/reports/xirr]', error)

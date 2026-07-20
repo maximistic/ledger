@@ -2,14 +2,21 @@
 
 import { useState, useEffect } from 'react'
 
+interface CustomClassXIRR {
+  id:   string
+  name: string
+  xirr: number | null
+}
+
 interface XIRRData {
-  overall: number | null
-  stocks:  number | null
-  mf:      number | null
-  epf:     number | null
-  fd:      number | null
-  rd:      number | null
-  us:      number | null
+  overall:       number | null
+  stocks:        number | null
+  mf:            number | null
+  epf:           number | null
+  fd:            number | null
+  rd:            number | null
+  us:            number | null
+  customClasses?: CustomClassXIRR[]
 }
 
 const SK: React.CSSProperties = {
@@ -39,7 +46,7 @@ function formatXIRR(val: number | null): string {
   return `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`
 }
 
-const ASSET_CLASSES: Array<{ key: keyof Omit<XIRRData, 'overall'>; label: string }> = [
+const ASSET_CLASSES: Array<{ key: keyof Omit<XIRRData, 'overall' | 'customClasses'>; label: string }> = [
   { key: 'stocks', label: 'Stocks' },
   { key: 'mf',     label: 'Mutual Funds' },
   { key: 'epf',    label: 'EPF' },
@@ -110,6 +117,33 @@ export default function XIRRSection() {
                 <>
                   <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' }}>
                     {label}
+                  </div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px', color, fontVariantNumeric: 'tabular-nums', marginBottom: '3px' }}>
+                    {formatXIRR(val)}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color }}>
+                    {xirrSublabel(val)}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })}
+        {(data?.customClasses ?? []).map(cc => {
+          const val   = cc.xirr
+          const color = xirrColor(val)
+          return (
+            <div key={cc.id} style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', padding: '16px 18px' }}>
+              {loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ ...SK, height: 11, width: 80 }} />
+                  <div style={{ ...SK, height: 26, width: 100, borderRadius: '4px' }} />
+                  <div style={{ ...SK, height: 11, width: 110 }} />
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                    {cc.name}
                   </div>
                   <div style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px', color, fontVariantNumeric: 'tabular-nums', marginBottom: '3px' }}>
                     {formatXIRR(val)}

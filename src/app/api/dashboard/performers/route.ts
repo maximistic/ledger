@@ -11,10 +11,11 @@ interface Performer {
 
 export async function GET() {
   try {
-    const [stocks, usStocks, mfs] = await Promise.all([
+    const [stocks, usStocks, mfs, customClasses] = await Promise.all([
       prisma.stock.findMany({ where: { quantity: { gt: 0 } } }),
       prisma.uSStock.findMany({ where: { quantity: { gt: 0 } } }),
       prisma.mutualFund.findMany({ where: { units: { gt: 0 } } }),
+      prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
 
     const performers: Performer[] = []
@@ -49,6 +50,20 @@ export async function GET() {
         assetClass:   'Mutual Fund',
         gainLossPct:  ((f.currentNav - f.avgNav) / f.avgNav) * 100,
         currentValue: f.currentValue,
+      })
+    }
+
+    for (const cls of customClasses) {
+      const totalInvested = cls.entries.reduce((s, e) => s + e.purchasePrice, 0)
+      const totalCurrent  = cls.entries.reduce((s, e) => s + e.currentValue, 0)
+      if (totalInvested <= 0) continue
+      console.log('[performers] custom class', cls.name, 'invested', totalInvested, 'current', totalCurrent)
+      performers.push({
+        name:         cls.name,
+        ticker:       cls.name.slice(0, 4).toUpperCase(),
+        assetClass:   'Custom',
+        gainLossPct:  ((totalCurrent - totalInvested) / totalInvested) * 100,
+        currentValue: totalCurrent,
       })
     }
 

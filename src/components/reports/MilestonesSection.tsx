@@ -20,15 +20,16 @@ type MilestoneDialog =
   | { mode: 'edit'; milestone: Milestone }
   | null
 
-const ASSET_OPTIONS = [
+const STATIC_ASSET_OPTIONS = [
   { label: 'Total portfolio', value: 'total' },
   { label: 'Stocks',          value: 'stocks' },
   { label: 'Mutual Funds',    value: 'mf' },
   { label: 'EPF',             value: 'epf' },
   { label: 'FDs & RDs',       value: 'fd' },
   { label: 'International',   value: 'us' },
-  { label: 'Any asset',       value: '' },
 ]
+
+const ANY_ASSET_OPTION = { label: 'Any asset', value: '' }
 
 function formatShort(n: number): string {
   if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(2)}Cr`
@@ -75,6 +76,7 @@ export default function MilestonesSection({ onLoaded }: Props) {
   const [mlError,      setMlError]      = useState('')
   const [deleteId,     setDeleteId]     = useState<string | null>(null)
   const [deleting,     setDeleting]     = useState(false)
+  const [customClasses, setCustomClasses] = useState<{ id: string; name: string }[]>([])
 
   // Stable ref so fetchData doesn't need onLoaded in its deps
   const onLoadedRef = useRef(onLoaded)
@@ -98,6 +100,22 @@ export default function MilestonesSection({ onLoaded }: Props) {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    const fetchCustom = async () => {
+      try {
+        const res = await fetch('/api/custom-assets')
+        if (res.ok) {
+          const d = await res.json() as { classes: { id: string; name: string }[] }
+          console.log('[MilestonesSection] custom classes loaded:', d.classes.length)
+          setCustomClasses(d.classes)
+        }
+      } catch (err) {
+        console.error('[MilestonesSection] Failed to load custom asset classes', err)
+      }
+    }
+    fetchCustom()
+  }, [])
 
   // Escape closes dialog
   useEffect(() => {
@@ -162,6 +180,12 @@ export default function MilestonesSection({ onLoaded }: Props) {
 
   const achieved   = milestones.filter(m => m.isAchieved).length
   const inProgress = milestones.filter(m => !m.isAchieved).length
+
+  const assetOptions = [
+    ...STATIC_ASSET_OPTIONS,
+    ...customClasses.map(c => ({ label: c.name, value: c.id })),
+    ANY_ASSET_OPTION,
+  ]
 
   return (
     <>
@@ -234,7 +258,7 @@ export default function MilestonesSection({ onLoaded }: Props) {
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                     Target: {formatShort(m.targetAmount)}
-                    {m.targetAsset ? ` in ${ASSET_OPTIONS.find(o => o.value === m.targetAsset)?.label ?? m.targetAsset}` : ''}
+                    {m.targetAsset ? ` in ${assetOptions.find(o => o.value === m.targetAsset)?.label ?? m.targetAsset}` : ''}
                   </div>
                 </button>
                 <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden', marginTop: '7px' }}>
@@ -337,7 +361,7 @@ export default function MilestonesSection({ onLoaded }: Props) {
                   value={mlAsset} onChange={e => setMlAsset(e.target.value)}
                   style={{ ...inputStyle, appearance: 'auto', cursor: 'pointer' }}
                 >
-                  {ASSET_OPTIONS.map(o => (
+                  {assetOptions.map(o => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>

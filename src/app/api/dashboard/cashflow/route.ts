@@ -40,8 +40,12 @@ export async function GET(req: Request) {
     const rangeStart = monthData[0].monthStart
     const rangeEnd   = monthData[monthData.length - 1].monthEnd
 
+    // Fetch snapshots from 2 months before range to cover the first month's start
+    const snapLookbackStart = new Date(rangeStart)
+    snapLookbackStart.setMonth(snapLookbackStart.getMonth() - 2)
+
     // Fetch all transactions in the full range in one batch
-    const [stockTxns, mfTxns, epfTxns, fds, rds, usTxns, customEntries] = await Promise.all([
+    const [stockTxns, mfTxns, epfTxns, fds, rds, usTxns, customEntries, snapshots] = await Promise.all([
       prisma.stockTransaction.findMany({
         where: { date: { gte: rangeStart, lte: rangeEnd }, type: 'BUY' },
       }),
@@ -62,6 +66,11 @@ export async function GET(req: Request) {
       }),
       prisma.customAssetEntry.findMany({
         where: { purchaseDate: { not: null, gte: rangeStart, lte: rangeEnd } },
+      }),
+      prisma.snapshot.findMany({
+        where: { date: { gte: snapLookbackStart, lte: rangeEnd } },
+        orderBy: { date: 'asc' },
+        select: { date: true, totalNetWorth: true },
       }),
     ])
 
@@ -99,7 +108,15 @@ export async function GET(req: Request) {
 
       const invested = stockInvested + mfInvested + epfInvested + fdInvested + rdInvested + usInvested + customInvested
 
-      return { label, invested, returns: 0, isCurrentMonth }
+      // Snapshot-based returns: endNW - startNW - invested
+      const startSnap = [...snapshots].reverse().find(s => s.date < monthStart)
+      const endSnap   = [...snapshots].reverse().find(s => s.date <= monthEnd)
+      const returns   = (startSnap && endSnap && startSnap !== endSnap)
+        ? endSnap.totalNetWorth - startSnap.totalNetWorth - invested
+        : 0
+      console.log('[cashflow] month', label, 'invested', invested, 'returns', returns)
+
+      return { label, invested, returns, isCurrentMonth }
     })
 
     const totalInvested         = months.reduce((s, m) => s + m.invested, 0)
