@@ -372,6 +372,8 @@ export default function AssetsPage() {
   const [thumbTop,    setThumbTop]        = useState(0)
   const [thumbHeight, setThumbHeight]     = useState(100)
   const [hiddenCount, setHiddenCount]     = useState(0)
+  const [showBadge,   setShowBadge]       = useState(false)
+  const badgeTimerRef                     = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   // Custom class visibility (persisted, default true)
   const [customVisibility, setCustomVisibility] = useState<Record<string, boolean>>(() => {
@@ -411,6 +413,10 @@ export default function AssetsPage() {
       (el.scrollHeight - el.clientHeight - el.scrollTop) / 70
     ))
     setHiddenCount(hidden)
+    // Show badge on scroll, fade out after 2s
+    setShowBadge(true)
+    if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current)
+    badgeTimerRef.current = setTimeout(() => setShowBadge(false), 2000)
   }, [])
 
   const toggleCustomClass = (id: string) => {
@@ -544,8 +550,11 @@ export default function AssetsPage() {
     }
   }, [railVisibility])
 
-  // Re-init scroll state when rail content changes
-  useEffect(() => { handleRailScroll() }, [customClasses, railVisibility, customVisibility, handleRailScroll])
+  // Re-init scroll state when rail content changes (delayed to let DOM render)
+  useEffect(() => {
+    const t = setTimeout(() => { handleRailScroll() }, 100)
+    return () => clearTimeout(t)
+  }, [customClasses, railVisibility, customVisibility, handleRailScroll])
 
   // Auto-scroll active card into view
   useEffect(() => {
@@ -554,6 +563,11 @@ export default function AssetsPage() {
     const activeCard = el.querySelector('[data-active="true"]')
     if (activeCard) (activeCard as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [activeTab])
+
+  // Clean up badge fade timer on unmount
+  useEffect(() => {
+    return () => { if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current) }
+  }, [])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -630,11 +644,11 @@ export default function AssetsPage() {
       <div style={{ display: 'flex', gap: '16px' }}>
 
         {/* ── Left rail ───────────────────────────────────────────────────────── */}
-        <div style={{ width: '192px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ width: '192px', flexShrink: 0 }}>
 
           {editingRail ? (
             /* ── Edit mode ──────────────────────────────────────────────────── */
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {/* Scrollable chip list */}
               <div style={{ overflowY: 'auto', maxHeight: '480px', display: 'flex', flexDirection: 'column', gap: '5px', scrollbarWidth: 'none' } as React.CSSProperties}>
                 <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px' }}>
@@ -699,7 +713,7 @@ export default function AssetsPage() {
               >
                 Done
               </button>
-            </>
+            </div>
           ) : (
             /* ── Normal mode ────────────────────────────────────────────────── */
             <>
@@ -802,7 +816,7 @@ export default function AssetsPage() {
                     <div style={{ width: '3px', background: '#B8B0A8', borderRadius: '3px', position: 'absolute', top: `${thumbTop}%`, height: `${thumbHeight}%`, transition: 'top 0.1s ease', minHeight: '20px' }} />
                   </div>
                   {hiddenCount > 0 && (
-                    <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#111', borderRadius: '8px', padding: '3px 8px', fontSize: '9px', color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                    <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#111', borderRadius: '8px', padding: '3px 8px', fontSize: '9px', color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', pointerEvents: 'none', opacity: showBadge ? 1 : 0, transition: 'opacity 0.4s ease' }}>
                       {hiddenCount} more ↓
                     </div>
                   )}
@@ -812,7 +826,7 @@ export default function AssetsPage() {
               {/* Edit sections — always visible below scroll */}
               <button
                 onClick={() => setEditingRail(true)}
-                style={{ width: '100%', background: editBtnBg, border: editBtnBdr, borderRadius: '10px', padding: '10px 14px', color: editBtnTxt, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}
+                style={{ width: '100%', background: editBtnBg, border: editBtnBdr, borderRadius: '10px', padding: '10px 14px', color: editBtnTxt, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginTop: '6px' }}
               >
                 <SlidersHorizontal size={13} />
                 Edit sections

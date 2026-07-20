@@ -49,6 +49,7 @@ export async function GET() {
       epfCRs, epfAccounts,
       fds, rds,
       usBuys, usStocks,
+      customClasses,
     ] = await Promise.all([
       prisma.stockTransaction.findMany({
         where: { type: 'BUY' },
@@ -92,6 +93,9 @@ export async function GET() {
       prisma.uSStock.findMany({
         where: { holdingsQuantity: { gt: 0 } },
         select: { currentValueINR: true },
+      }),
+      prisma.customAssetClass.findMany({
+        include: { entries: { select: { purchaseDate: true, purchasePrice: true, currentValue: true } } },
       }),
     ])
 
@@ -206,8 +210,14 @@ export async function GET() {
     for (const fd of fds)       { oFlows.push(-fd.principal);           oDates.push(fd.startDate) }
     for (const rd of rds)       { if (rd.totalInvested > 0) { oFlows.push(-rd.totalInvested); oDates.push(rd.startDate) } }
     for (const t of usBuys)    { oFlows.push(-t.amountINR);            oDates.push(t.date) }
+    for (const cls of customClasses) {
+      for (const e of cls.entries) {
+        if (e.purchasePrice > 0 && e.purchaseDate) { oFlows.push(-e.purchasePrice); oDates.push(e.purchaseDate) }
+      }
+    }
 
-    const totalCV = stockCV + mfCV + epfCorpus + fdCV + rdCV + usCV
+    const customCV = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.currentValue, 0), 0)
+    const totalCV = stockCV + mfCV + epfCorpus + fdCV + rdCV + usCV + customCV
     if (oFlows.length > 0 && totalCV > 0) {
       oFlows.push(totalCV)
       oDates.push(today)

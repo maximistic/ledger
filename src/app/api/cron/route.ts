@@ -171,13 +171,14 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
 
     if (!shouldCreate) return { created: false, skipped: true }
 
-    const [stocks, mfs, epfAccounts, fds, rds, usStocks] = await Promise.all([
+    const [stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses] = await Promise.all([
       prisma.stock.findMany(),
       prisma.mutualFund.findMany(),
       prisma.ePFAccount.findMany(),
       prisma.fDAccount.findMany(),
       prisma.rDAccount.findMany(),
       prisma.uSStock.findMany(),
+      prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
 
     const stocksValue   = stocks.reduce((s, x) => s + x.currentValue, 0)
@@ -186,14 +187,16 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
     const fdValue       = fds.reduce((s, x) => s + x.currentValue, 0)
     const rdValue       = rds.reduce((s, x) => s + x.currentValue, 0)
     const usStocksValue = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
-    const totalNetWorth = stocksValue + mfValue + epfValue + fdValue + rdValue + usStocksValue
+    const customValue   = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.currentValue, 0), 0)
+    const totalNetWorth = stocksValue + mfValue + epfValue + fdValue + rdValue + usStocksValue + customValue
 
     const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
     const mfInvested       = mfs.reduce((s, x) => s + x.investedValue, 0)
     const fdInvested       = fds.reduce((s, x) => s + x.principal, 0)
     const rdInvested       = rds.reduce((s, x) => s + x.totalInvested, 0)
     const usStocksInvested = usStocks.reduce((s, x) => s + x.investedValueINR, 0)
-    const investedValue    = stocksInvested + mfInvested + epfValue + fdInvested + rdInvested + usStocksInvested
+    const customInvested   = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.purchasePrice, 0), 0)
+    const investedValue    = stocksInvested + mfInvested + epfValue + fdInvested + rdInvested + usStocksInvested + customInvested
 
     const dateKey = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 

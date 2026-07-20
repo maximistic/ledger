@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma'
 
 const getCurrentValue = async (targetAsset: string | null): Promise<number> => {
   if (!targetAsset || targetAsset === 'total') {
-    const [stocks, mfs, epf, fds, rds, usStocks] = await Promise.all([
+    const [stocks, mfs, epf, fds, rds, usStocks, customClasses] = await Promise.all([
       prisma.stock.findMany({ where: { quantity: { gt: 0 } } }),
       prisma.mutualFund.findMany(),
       prisma.ePFAccount.findFirst(),
       prisma.fDAccount.findMany(),
       prisma.rDAccount.findMany(),
       prisma.uSStock.findMany({ where: { quantity: { gt: 0 } } }),
+      prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
     const stocksVal = stocks.reduce((s, x) => s + x.currentValue, 0)
     const mfVal     = mfs.reduce((s, x) => s + x.currentValue, 0)
@@ -17,7 +18,8 @@ const getCurrentValue = async (targetAsset: string | null): Promise<number> => {
     const fdVal     = fds.reduce((s, x) => s + x.currentValue, 0)
     const rdVal     = rds.reduce((s, x) => s + x.currentValue, 0)
     const usVal     = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
-    return stocksVal + mfVal + epfVal + fdVal + rdVal + usVal
+    const customVal = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.currentValue, 0), 0)
+    return stocksVal + mfVal + epfVal + fdVal + rdVal + usVal + customVal
   }
 
   if (targetAsset === 'stocks') {
@@ -47,6 +49,15 @@ const getCurrentValue = async (targetAsset: string | null): Promise<number> => {
   if (targetAsset === 'us') {
     const usStocks = await prisma.uSStock.findMany({ where: { quantity: { gt: 0 } } })
     return usStocks.reduce((s, x) => s + x.currentValueINR, 0)
+  }
+
+  // Custom asset class by ID
+  const customClass = await prisma.customAssetClass.findUnique({
+    where: { id: targetAsset },
+    include: { entries: true },
+  })
+  if (customClass) {
+    return customClass.entries.reduce((s, e) => s + e.currentValue, 0)
   }
 
   return 0
