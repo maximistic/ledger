@@ -367,6 +367,21 @@ export default function AssetsPage() {
   })
   const [editingRail, setEditingRail] = useState(false)
 
+  // Scroll indicator
+  const railRef                           = useRef<HTMLDivElement>(null)
+  const [thumbTop,    setThumbTop]        = useState(0)
+  const [thumbHeight, setThumbHeight]     = useState(100)
+  const [hiddenCount, setHiddenCount]     = useState(0)
+
+  // Custom class visibility (persisted, default true)
+  const [customVisibility, setCustomVisibility] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const saved = localStorage.getItem('ledger-custom-visibility')
+      return saved ? JSON.parse(saved) as Record<string, boolean> : {}
+    } catch { return {} }
+  })
+
   // Dark mode
   const [isDark, setIsDark] = useState(false)
   useEffect(() => {
@@ -384,6 +399,29 @@ export default function AssetsPage() {
       return next
     })
   }
+
+  const handleRailScroll = useCallback(() => {
+    const el = railRef.current
+    if (!el) return
+    const scrollPct    = el.scrollTop / (el.scrollHeight - el.clientHeight || 1)
+    const visibleRatio = el.clientHeight / (el.scrollHeight || 1)
+    setThumbTop(scrollPct * (100 - visibleRatio * 100))
+    setThumbHeight(visibleRatio * 100)
+    const hidden = Math.max(0, Math.round(
+      (el.scrollHeight - el.clientHeight - el.scrollTop) / 70
+    ))
+    setHiddenCount(hidden)
+  }, [])
+
+  const toggleCustomClass = (id: string) => {
+    setCustomVisibility(prev => {
+      const next = { ...prev, [id]: !(prev[id] ?? true) }
+      localStorage.setItem('ledger-custom-visibility', JSON.stringify(next))
+      return next
+    })
+  }
+
+  const isCustomVisible = (id: string) => customVisibility[id] ?? true
 
   // Price refresh
   const [refreshing, setRefreshing] = useState(false)
@@ -506,6 +544,17 @@ export default function AssetsPage() {
     }
   }, [railVisibility])
 
+  // Re-init scroll state when rail content changes
+  useEffect(() => { handleRailScroll() }, [customClasses, railVisibility, customVisibility, handleRailScroll])
+
+  // Auto-scroll active card into view
+  useEffect(() => {
+    const el = railRef.current
+    if (!el) return
+    const activeCard = el.querySelector('[data-active="true"]')
+    if (activeCard) (activeCard as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeTab])
+
   async function handleRefresh() {
     setRefreshing(true)
     setRefreshStatus('')
@@ -581,63 +630,72 @@ export default function AssetsPage() {
       <div style={{ display: 'flex', gap: '16px' }}>
 
         {/* ── Left rail ───────────────────────────────────────────────────────── */}
-        <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+        <div style={{ width: '192px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
 
           {editingRail ? (
             /* ── Edit mode ──────────────────────────────────────────────────── */
             <>
-              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px' }}>
-                Sections
-              </div>
+              {/* Scrollable chip list */}
+              <div style={{ overflowY: 'auto', maxHeight: '480px', display: 'flex', flexDirection: 'column', gap: '5px', scrollbarWidth: 'none' } as React.CSSProperties}>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px' }}>
+                  Sections
+                </div>
 
-              {SECTION_ORDER.map(key => {
-                const selected = railVisibility[key]
-                return (
-                  <div
-                    key={key}
-                    onClick={() => toggleSection(key)}
-                    style={{
-                      padding: '10px 14px', borderRadius: '10px',
-                      background: 'var(--color-surface-raised)',
-                      border: '0.5px solid var(--color-border)',
-                      borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      cursor: 'pointer', transition: 'all 140ms ease',
-                    }}
-                  >
-                    <span style={{ fontSize: '13px', color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)', fontWeight: selected ? 500 : 400 }}>
-                      {SECTION_LABELS[key]}
-                    </span>
-                    {selected ? (
-                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Check size={9} color="var(--color-surface)" strokeWidth={3} />
-                      </div>
-                    ) : (
-                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '0.5px solid var(--color-border-subtle)', background: 'var(--color-surface-raised)', flexShrink: 0 }} />
-                    )}
+                {SECTION_ORDER.map(key => {
+                  const selected = railVisibility[key]
+                  return (
+                    <div key={key} onClick={() => toggleSection(key)} style={{ padding: '10px 14px', borderRadius: '10px', background: 'var(--color-surface-raised)', border: '0.5px solid var(--color-border)', borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 140ms ease' }}>
+                      <span style={{ fontSize: '13px', color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)', fontWeight: selected ? 500 : 400 }}>
+                        {SECTION_LABELS[key]}
+                      </span>
+                      {selected ? (
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={9} color="var(--color-surface)" strokeWidth={3} />
+                        </div>
+                      ) : (
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '0.5px solid var(--color-border-subtle)', background: 'var(--color-surface-raised)', flexShrink: 0 }} />
+                      )}
+                    </div>
+                  )
+                })}
+
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px', marginTop: '4px' }}>
+                  Custom
+                </div>
+                {customClasses.length > 0 ? customClasses.map(cls => {
+                  const selected = isCustomVisible(cls.id)
+                  return (
+                    <div key={cls.id} onClick={() => toggleCustomClass(cls.id)} style={{ padding: '10px 14px', borderRadius: '10px', background: 'var(--color-surface-raised)', border: '0.5px solid var(--color-border)', borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 140ms ease' }}>
+                      <span style={{ fontSize: '13px', color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)', fontWeight: selected ? 500 : 400 }}>
+                        {cls.name}
+                      </span>
+                      {selected ? (
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={9} color="var(--color-surface)" strokeWidth={3} />
+                        </div>
+                      ) : (
+                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '0.5px solid var(--color-border-subtle)', background: 'var(--color-surface-raised)', flexShrink: 0 }} />
+                      )}
+                    </div>
+                  )
+                }) : (
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', padding: '0 4px', lineHeight: 1.4 }}>
+                    No custom classes yet
                   </div>
-                )
-              })}
-
-              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px', marginTop: '4px' }}>
-                Custom classes
-              </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', padding: '0 4px', lineHeight: 1.4 }}>
-                Always visible · manage via the tab
+                )}
               </div>
 
-              <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '2px 0' }} />
-
+              {/* Bottom actions */}
+              <div style={{ height: '0.5px', background: 'var(--color-border)' }} />
               <button
-                onClick={() => { setEditingRail(false); setShowAddClassDialog(true) }}
+                onClick={() => setShowAddClassDialog(true)}
                 style={{ width: '100%', padding: '8px 14px', borderRadius: '8px', border: '0.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Plus size={13} /> New asset class
               </button>
-
               <button
                 onClick={() => setEditingRail(false)}
-                style={{ width: '100%', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginTop: '4px' }}
+                style={{ width: '100%', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 Done
               </button>
@@ -645,92 +703,116 @@ export default function AssetsPage() {
           ) : (
             /* ── Normal mode ────────────────────────────────────────────────── */
             <>
-              {/* Stocks */}
-              {railVisibility.stocks && (
-                <div onClick={() => setActiveTab('stocks')} style={{ background: rCardBg(activeTab === 'stocks'), border: rBorder(), borderRight: rRightBdr(activeTab === 'stocks'), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
-                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(activeTab === 'stocks') }}>Stocks</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}</div>
-                  <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(activeTab === 'stocks') }}>{formatShort(stocksInvested)}</div>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '7px' }}>
 
-              {/* Mutual Funds */}
-              {railVisibility.mf && (() => {
-                const active = activeTab === 'mf'
-                const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
-                return (
-                  <div onClick={() => setActiveTab('mf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>Mutual Funds</div>
-                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(mfDisplay)}</div>
-                  </div>
-                )
-              })()}
+                {/* Scrollable rail cards */}
+                <div
+                  ref={railRef}
+                  className="assets-rail"
+                  onScroll={handleRailScroll}
+                  style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '480px' } as React.CSSProperties}
+                >
+                  {/* Stocks */}
+                  {railVisibility.stocks && (
+                    <div data-active={String(activeTab === 'stocks')} onClick={() => setActiveTab('stocks')} style={{ background: rCardBg(activeTab === 'stocks'), border: rBorder(), borderRight: rRightBdr(activeTab === 'stocks'), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                      <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(activeTab === 'stocks') }}>Stocks</div>
+                      <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}</div>
+                      <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(activeTab === 'stocks') }}>{formatShort(stocksInvested)}</div>
+                    </div>
+                  )}
 
-              {/* EPF */}
-              {railVisibility.epf && (() => {
-                const active = activeTab === 'epf'
-                return (
-                  <div onClick={() => setActiveTab('epf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>EPF</div>
-                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{epfSummary.configured ? '1 account' : 'Not configured'}</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}</div>
-                  </div>
-                )
-              })()}
-
-              {/* FDs & RDs */}
-              {railVisibility.fd && (() => {
-                const active = activeTab === 'fd'
-                return (
-                  <div onClick={() => setActiveTab('fd')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>FDs & RDs</div>
-                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{fdrdSummary.count > 0 ? `${fdrdSummary.count} account${fdrdSummary.count === 1 ? '' : 's'}` : 'No accounts'}</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(fdrdSummary.currentValue)}</div>
-                  </div>
-                )
-              })()}
-
-              {/* US Stocks */}
-              {railVisibility.us && (() => {
-                const active = activeTab === 'us'
-                return (
-                  <div onClick={() => setActiveTab('us')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>International</div>
-                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}</div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(usSummary.currentValue)}</div>
-                  </div>
-                )
-              })()}
-
-              {/* Custom classes */}
-              {customClasses.length > 0 && (
-                <>
-                  <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '2px 0' }} />
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.7px', fontWeight: 600, padding: '0 2px', marginBottom: '-2px' }}>
-                    Custom
-                  </div>
-                  {customClasses.map(cls => {
-                    const active = activeTab === `custom-${cls.id}`
+                  {/* Mutual Funds */}
+                  {railVisibility.mf && (() => {
+                    const active = activeTab === 'mf'
+                    const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
                     return (
-                      <div
-                        key={cls.id}
-                        onClick={() => setActiveTab(`custom-${cls.id}`)}
-                        style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}
-                      >
-                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>{cls.name}</div>
-                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{cls.entryCount} {cls.entryCount === 1 ? 'entry' : 'entries'}</div>
-                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(cls.totalCurrentValue)}</div>
+                      <div data-active={String(active)} onClick={() => setActiveTab('mf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>Mutual Funds</div>
+                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(mfDisplay)}</div>
                       </div>
                     )
-                  })}
-                </>
-              )}
+                  })()}
 
-              {/* Edit sections */}
+                  {/* EPF */}
+                  {railVisibility.epf && (() => {
+                    const active = activeTab === 'epf'
+                    return (
+                      <div data-active={String(active)} onClick={() => setActiveTab('epf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>EPF</div>
+                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{epfSummary.configured ? '1 account' : 'Not configured'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}</div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* FDs & RDs */}
+                  {railVisibility.fd && (() => {
+                    const active = activeTab === 'fd'
+                    return (
+                      <div data-active={String(active)} onClick={() => setActiveTab('fd')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>FDs & RDs</div>
+                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{fdrdSummary.count > 0 ? `${fdrdSummary.count} account${fdrdSummary.count === 1 ? '' : 's'}` : 'No accounts'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(fdrdSummary.currentValue)}</div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* US Stocks */}
+                  {railVisibility.us && (() => {
+                    const active = activeTab === 'us'
+                    return (
+                      <div data-active={String(active)} onClick={() => setActiveTab('us')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>International</div>
+                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(usSummary.currentValue)}</div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Custom classes (filtered by visibility) */}
+                  {customClasses.some(cls => isCustomVisible(cls.id)) && (
+                    <>
+                      <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '2px 0' }} />
+                      <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.7px', fontWeight: 600, padding: '0 2px', marginBottom: '-2px' }}>
+                        Custom
+                      </div>
+                      {customClasses.filter(cls => isCustomVisible(cls.id)).map(cls => {
+                        const active = activeTab === `custom-${cls.id}`
+                        return (
+                          <div
+                            key={cls.id}
+                            data-active={String(active)}
+                            onClick={() => setActiveTab(`custom-${cls.id}`)}
+                            style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}
+                          >
+                            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>{cls.name}</div>
+                            <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{cls.entryCount} {cls.entryCount === 1 ? 'entry' : 'entries'}</div>
+                            <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(cls.totalCurrentValue)}</div>
+                          </div>
+                        )
+                      })}
+                    </>
+                  )}
+                </div>
+
+                {/* Scroll indicator column */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '8px', position: 'relative', padding: '4px 0' }}>
+                  <div style={{ width: '3px', flex: 1, background: '#EAE7E2', borderRadius: '3px', position: 'relative' }}>
+                    <div style={{ width: '3px', background: '#B8B0A8', borderRadius: '3px', position: 'absolute', top: `${thumbTop}%`, height: `${thumbHeight}%`, transition: 'top 0.1s ease', minHeight: '20px' }} />
+                  </div>
+                  {hiddenCount > 0 && (
+                    <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#111', borderRadius: '8px', padding: '3px 8px', fontSize: '9px', color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                      {hiddenCount} more ↓
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Edit sections — always visible below scroll */}
               <button
                 onClick={() => setEditingRail(true)}
-                style={{ width: '100%', background: editBtnBg, border: editBtnBdr, borderRadius: '10px', padding: '10px 14px', color: editBtnTxt, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ width: '100%', background: editBtnBg, border: editBtnBdr, borderRadius: '10px', padding: '10px 14px', color: editBtnTxt, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}
               >
                 <SlidersHorizontal size={13} />
                 Edit sections
@@ -845,7 +927,12 @@ export default function AssetsPage() {
             onClose={() => setShowAddClassDialog(false)}
             onSuccess={newClass => {
               setCustomClasses(prev => [...prev, newClass as CustomClassSummary])
-              setActiveTab(`custom-${newClass.id}`)
+              setCustomVisibility(prev => {
+                const next = { ...prev, [newClass.id]: true }
+                localStorage.setItem('ledger-custom-visibility', JSON.stringify(next))
+                return next
+              })
+              if (!editingRail) setActiveTab(`custom-${newClass.id}`)
               setShowAddClassDialog(false)
               void fetchSummaries()
             }}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, RefreshCw, TrendingUp, Upload } from 'lucide-react'
+import { Plus, RefreshCw, TrendingUp, Upload, Info } from 'lucide-react'
 import { formatINR, formatShortSigned, formatPctSigned } from '@/lib/utils'
 import AddEditFundDialog from './AddEditFundDialog'
 import FundDetailDialog from './FundDetailDialog'
@@ -390,6 +390,14 @@ export default function MutualFundsTab({ onSummaryRefresh }: Props) {
             <div style={{ fontSize: '11.5px', color: 'var(--color-gain)' }}>{refreshStatus}</div>
           )}
         </div>
+      </div>
+
+      {/* NAV source disclaimer */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 0', marginBottom: '4px' }}>
+        <Info size={12} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
+        <span style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+          NAV prices fetched from Yahoo Finance. If a price looks wrong, click any fund → <strong style={{ fontWeight: 600 }}>Edit NAV</strong> to update it manually.
+        </span>
       </div>
 
       {/* Filter pills */}
