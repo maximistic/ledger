@@ -1,6 +1,25 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+
+async function getLiveExchangeRate(): Promise<number> {
+  try {
+    const res = await fetch(
+      'https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X',
+      { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0' } },
+    )
+    if (!res.ok) return 84
+    const data = await res.json() as {
+      chart?: { result?: Array<{ meta?: { regularMarketPrice?: number } }> }
+    }
+    const rate = data?.chart?.result?.[0]?.meta?.regularMarketPrice
+    return rate && rate > 0 ? rate : 84
+  } catch {
+    return 84
+  }
+}
 
 export async function GET() {
   try {
@@ -48,7 +67,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'avgPriceUSD must be a number > 0' }, { status: 400 })
 
     const normalizedTicker = ticker.trim().toUpperCase()
-    const rate             = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : 84
+    const liveRate         = typeof exchangeRate === 'number' && exchangeRate > 0 ? exchangeRate : await getLiveExchangeRate()
+    const rate             = liveRate
     const cp               = typeof currentPriceUSD === 'number' && currentPriceUSD > 0 ? currentPriceUSD : avgPriceUSD
     const investedValueINR = quantity * avgPriceUSD * rate
     const currentValueINR  = quantity * cp * rate

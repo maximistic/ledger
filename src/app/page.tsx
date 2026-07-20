@@ -719,7 +719,7 @@ export default function DashboardPage() {
                         <div
                           key={b.label}
                           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default' }}
-                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, returnsAmt: 0, barIndex: barIdx })}
+                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, returnsAmt: b.returns ?? 0, barIndex: barIdx })}
                           onMouseLeave={() => setHoveredBar(null)}
                         >
                           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
@@ -765,8 +765,20 @@ export default function DashboardPage() {
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>
                     <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>Returns</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+₹0</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>snapshot-based, coming soon</div>
+                    {(() => {
+                      const totalReturns = months.reduce((s, m) => s + (m.returns ?? 0), 0)
+                      return totalReturns > 0 ? (
+                        <>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+{formatINR(totalReturns)}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>over 6 months</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-muted)', lineHeight: 1.1 }}>—</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>calculating...</div>
+                        </>
+                      )
+                    })()}
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>

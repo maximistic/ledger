@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const monthValue = `${year}-${String(month).padStart(2, '0')}`
     const label      = monthLabel(year, month)
 
-    const [stockTxns, mfTxns, epfTxns, rds, fds, usTxns] = await Promise.all([
+    const [stockTxns, mfTxns, epfTxns, rds, fds, usTxns, customEntries] = await Promise.all([
       prisma.stockTransaction.findMany({
         where: { date: { gte: monthStart, lte: monthEnd }, type: 'BUY' },
         include: { stock: { select: { name: true, ticker: true } } },
@@ -62,6 +62,11 @@ export async function GET(request: NextRequest) {
         where: { date: { gte: monthStart, lte: monthEnd }, type: 'BUY' },
         include: { stock: { select: { name: true, ticker: true } } },
         orderBy: { date: 'asc' },
+      }),
+      prisma.customAssetEntry.findMany({
+        where: { purchaseDate: { not: null, gte: monthStart, lte: monthEnd } },
+        include: { class: { select: { name: true } } },
+        orderBy: { purchaseDate: 'asc' },
       }),
     ])
 
@@ -145,12 +150,25 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    for (const e of customEntries) {
+      if (!e.purchaseDate) continue
+      transactions.push({
+        date: e.purchaseDate,
+        name: e.name,
+        subtitle: `${e.class.name} · purchase`,
+        type: 'Custom',
+        badge: 'CUSTOM',
+        amount: e.purchasePrice,
+      })
+    }
+
     transactions.sort((a, b) => a.date.getTime() - b.date.getTime())
 
-    const rdInstalled = rds.reduce((s, rd) => {
+    const rdInstalled  = rds.reduce((s, rd) => {
       const d = new Date(year, month - 1, rd.dayOfMonth)
       return d >= monthStart && d <= monthEnd ? s + rd.monthlyAmount : s
     }, 0)
+    const customTotal  = customEntries.reduce((s, e) => s + e.purchasePrice, 0)
 
     const summary = {
       total:  stockTxns.reduce((s, t) => s + t.quantity * t.price, 0)
@@ -158,22 +176,25 @@ export async function GET(request: NextRequest) {
              + epfTxns.reduce((s, t) => s + t.employeeAmount + t.employerAmount, 0)
              + rdInstalled
              + fds.reduce((s, f) => s + f.principal, 0)
-             + usTxns.reduce((s, t) => s + t.amountINR, 0),
+             + usTxns.reduce((s, t) => s + t.amountINR, 0)
+             + customTotal,
       stocks: stockTxns.reduce((s, t) => s + t.quantity * t.price, 0),
       mf:     mfTxns.reduce((s, t) => s + t.amount, 0),
       epf:    epfTxns.reduce((s, t) => s + t.employeeAmount + t.employerAmount, 0),
       rd:     rdInstalled,
       fd:     fds.reduce((s, f) => s + f.principal, 0),
       us:     usTxns.reduce((s, t) => s + t.amountINR, 0),
+      custom: customTotal,
     }
 
-    const [minStock, minMF, minEPF, minFD, minRD, minUS] = await Promise.all([
+    const [minStock, minMF, minEPF, minFD, minRD, minUS, minCustom] = await Promise.all([
       prisma.stockTransaction.findFirst({ where: { type: 'BUY' }, orderBy: { date: 'asc' }, select: { date: true } }),
       prisma.mutualFundTransaction.findFirst({ where: { type: { in: ['SIP', 'LUMPSUM'] } }, orderBy: { date: 'asc' }, select: { date: true } }),
       prisma.ePFTransaction.findFirst({ where: { type: 'CR' }, orderBy: { transactionDate: 'asc' }, select: { transactionDate: true } }),
       prisma.fDAccount.findFirst({ orderBy: { startDate: 'asc' }, select: { startDate: true } }),
       prisma.rDAccount.findFirst({ orderBy: { startDate: 'asc' }, select: { startDate: true } }),
       prisma.uSStockTransaction.findFirst({ where: { type: 'BUY' }, orderBy: { date: 'asc' }, select: { date: true } }),
+      prisma.customAssetEntry.findFirst({ where: { purchaseDate: { not: null } }, orderBy: { purchaseDate: 'asc' }, select: { purchaseDate: true } }),
     ])
 
     const candidates = [
@@ -183,6 +204,7 @@ export async function GET(request: NextRequest) {
       minFD?.startDate,
       minRD?.startDate,
       minUS?.date,
+      minCustom?.purchaseDate,
     ].filter((d): d is Date => d != null)
 
     const earliest = candidates.length > 0

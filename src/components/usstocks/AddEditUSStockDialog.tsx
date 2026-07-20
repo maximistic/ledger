@@ -37,7 +37,8 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
   const [name, setName]             = useState(stock?.name ?? '')
   const [quantity, setQuantity]     = useState(stock ? String(stock.quantity) : '')
   const [avgPriceUSD, setAvgPrice]  = useState(stock ? String(stock.avgPriceUSD) : '')
-  const [exchangeRate, setRate]     = useState(stock ? String(stock.exchangeRate) : '84')
+  const [exchangeRate, setRate]     = useState(stock ? String(stock.exchangeRate) : '')
+  const [rateLoading, setRateLoading] = useState(false)
   const [date, setDate]             = useState('')
 
   const [errors, setErrors]         = useState<Record<string, string>>({})
@@ -53,6 +54,20 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
+
+  // Fetch live exchange rate for new stocks
+  useEffect(() => {
+    if (stock) return // editing — use stored rate
+    setRateLoading(true)
+    fetch('/api/us-stocks/exchange-rate')
+      .then(r => r.json())
+      .then((data: { rate?: number }) => {
+        if (data.rate && data.rate > 0) setRate(String(data.rate.toFixed(2)))
+        else setRate('84')
+      })
+      .catch(() => setRate('84'))
+      .finally(() => setRateLoading(false))
+  }, [stock])
 
   const doSearch = useCallback(async (q: string) => {
     if (q.length < 1) { setSearchResults([]); setDropdownOpen(false); return }
@@ -297,10 +312,15 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
             <input
               type="number" min="0" step="any"
               value={exchangeRate} onChange={e => setRate(e.target.value)}
-              placeholder="84"
+              placeholder={rateLoading ? 'Fetching…' : '84'}
               style={{ ...inputStyle, fontVariantNumeric: 'tabular-nums' }}
             />
             {errors.rate && <div style={errText}>{errors.rate}</div>}
+            {!errors.rate && (
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '3px' }}>
+                {rateLoading ? 'Fetching live rate…' : exchangeRate ? `Live rate: ₹${exchangeRate}/USD` : ''}
+              </div>
+            )}
           </div>
 
           {/* Live total pill */}

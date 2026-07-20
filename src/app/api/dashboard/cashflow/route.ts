@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     const rangeEnd   = monthData[monthData.length - 1].monthEnd
 
     // Fetch all transactions in the full range in one batch
-    const [stockTxns, mfTxns, epfTxns, fds, rds, usTxns] = await Promise.all([
+    const [stockTxns, mfTxns, epfTxns, fds, rds, usTxns, customEntries] = await Promise.all([
       prisma.stockTransaction.findMany({
         where: { date: { gte: rangeStart, lte: rangeEnd }, type: 'BUY' },
       }),
@@ -59,6 +59,9 @@ export async function GET(req: Request) {
       }),
       prisma.uSStockTransaction.findMany({
         where: { date: { gte: rangeStart, lte: rangeEnd }, type: 'BUY' },
+      }),
+      prisma.customAssetEntry.findMany({
+        where: { purchaseDate: { not: null, gte: rangeStart, lte: rangeEnd } },
       }),
     ])
 
@@ -90,7 +93,11 @@ export async function GET(req: Request) {
         .filter(t => t.date >= monthStart && t.date <= monthEnd)
         .reduce((s, t) => s + t.amountINR, 0)
 
-      const invested = stockInvested + mfInvested + epfInvested + fdInvested + rdInvested + usInvested
+      const customInvested = customEntries
+        .filter(e => e.purchaseDate && e.purchaseDate >= monthStart && e.purchaseDate <= monthEnd)
+        .reduce((s, e) => s + e.purchasePrice, 0)
+
+      const invested = stockInvested + mfInvested + epfInvested + fdInvested + rdInvested + usInvested + customInvested
 
       return { label, invested, returns: 0, isCurrentMonth }
     })

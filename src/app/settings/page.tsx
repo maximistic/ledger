@@ -345,23 +345,53 @@ export default function SettingsPage() {
   async function exportAll() {
     setCsvLoading('all')
     try {
-      const [stocksRes, mfRes, fdRes, rdRes, usRes] = await Promise.all([
-        fetch('/api/stocks'), fetch('/api/mf'), fetch('/api/fd'), fetch('/api/rd'), fetch('/api/us-stocks'),
+      const [stocksRes, mfRes, fdRes, rdRes, usRes, customRes] = await Promise.all([
+        fetch('/api/stocks'), fetch('/api/mf'), fetch('/api/fd'), fetch('/api/rd'), fetch('/api/us-stocks'), fetch('/api/custom-assets'),
       ])
       const { stocks }           = stocksRes.ok ? await stocksRes.json() as { stocks: Array<Record<string, unknown>> }  : { stocks: [] }
       const { funds }            = mfRes.ok  ? await mfRes.json()  as { funds:  Array<Record<string, unknown>> }        : { funds: [] }
       const { fds }              = fdRes.ok  ? await fdRes.json()  as { fds:    Array<Record<string, unknown>> }        : { fds: [] }
       const { rds }              = rdRes.ok  ? await rdRes.json()  as { rds:    Array<Record<string, unknown>> }        : { rds: [] }
       const { stocks: usStocks } = usRes.ok  ? await usRes.json()  as { stocks: Array<Record<string, unknown>> }        : { stocks: [] }
+      const customData           = customRes.ok ? await customRes.json() as { classes?: Array<{ name: string; entries: Array<{ name: string; purchasePrice: number; currentValue: number }> }> } : {}
       const rows: Record<string, unknown>[] = [
         ...(stocks   as Array<Record<string, unknown>>).map(s => ({ 'Asset Type': 'Indian Stock',       Name: s.name, Identifier: s.ticker,   'Invested (₹)': s.investedValue,    'Current Value (₹)': s.currentValue })),
         ...(usStocks as Array<Record<string, unknown>>).map(s => ({ 'Asset Type': 'Intl Stock',         Name: s.name, Identifier: s.ticker,   'Invested (₹)': s.investedValueINR, 'Current Value (₹)': s.currentValueINR })),
         ...(funds    as Array<Record<string, unknown>>).map(f => ({ 'Asset Type': 'Mutual Fund',        Name: f.name, Identifier: f.isin ?? '','Invested (₹)': f.investedValue,    'Current Value (₹)': f.currentValue })),
         ...(fds      as Array<Record<string, unknown>>).map(f => ({ 'Asset Type': 'Fixed Deposit',      Name: f.name, Identifier: f.bankName,  'Invested (₹)': f.principal,        'Current Value (₹)': f.currentValue })),
         ...(rds      as Array<Record<string, unknown>>).map(r => ({ 'Asset Type': 'Recurring Deposit',  Name: r.name, Identifier: r.bankName,  'Invested (₹)': r.totalInvested,    'Current Value (₹)': r.currentValue })),
+        ...(customData.classes ?? []).flatMap(cls =>
+          cls.entries.map(e => ({ 'Asset Type': cls.name, Name: e.name, Identifier: '', 'Invested (₹)': e.purchasePrice, 'Current Value (₹)': e.currentValue }))
+        ),
       ]
       downloadCSV(rows, `ledger-portfolio-${dateStr}.csv`)
       setCsvDone('all'); setTimeout(() => setCsvDone(null), 2000)
+    } catch (err) {
+      console.error('exportAll error:', err)
+    } finally { setCsvLoading(null) }
+  }
+
+  async function exportCustom() {
+    setCsvLoading('custom')
+    try {
+      const res = await fetch('/api/custom-assets')
+      if (!res.ok) return
+      const data = await res.json() as { classes?: Array<{ name: string; entries: Array<{ name: string; purchasePrice: number; currentValue: number; purchaseDate: string | null; notes: string | null }> }> }
+      const rows = (data.classes ?? []).flatMap(cls =>
+        cls.entries.map(e => ({
+          Class:                 cls.name,
+          Name:                  e.name,
+          'Purchase Date':       e.purchaseDate ? new Date(e.purchaseDate).toLocaleDateString('en-IN') : '—',
+          'Purchase Price (₹)':  e.purchasePrice,
+          'Current Value (₹)':   e.currentValue,
+          'Gain/Loss (₹)':       e.currentValue - e.purchasePrice,
+          Notes:                 e.notes ?? '',
+        }))
+      )
+      downloadCSV(rows, `ledger-custom-${dateStr}.csv`)
+      setCsvDone('custom'); setTimeout(() => setCsvDone(null), 2000)
+    } catch (err) {
+      console.error('exportCustom error:', err)
     } finally { setCsvLoading(null) }
   }
 
@@ -564,10 +594,11 @@ export default function SettingsPage() {
           {activeSection === 'export' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {[
-                { key: 'stocks', label: 'Stocks',       desc: 'Holdings and transactions', fn: exportStocks },
-                { key: 'mf',    label: 'Mutual Funds',  desc: 'Funds and NAV history',     fn: exportMF    },
-                { key: 'fdrd',  label: 'FDs & RDs',     desc: 'All deposit accounts',      fn: exportFDRD  },
-                { key: 'all',   label: 'Full portfolio', desc: 'Everything in one file',    fn: exportAll   },
+                { key: 'stocks', label: 'Stocks',        desc: 'Holdings and transactions',            fn: exportStocks },
+                { key: 'mf',    label: 'Mutual Funds',   desc: 'Funds and NAV history',                fn: exportMF     },
+                { key: 'fdrd',  label: 'FDs & RDs',      desc: 'All deposit accounts',                 fn: exportFDRD   },
+                { key: 'custom',label: 'Custom Assets',  desc: 'All custom asset classes and entries', fn: exportCustom },
+                { key: 'all',   label: 'Full portfolio', desc: 'Everything in one file',               fn: exportAll    },
               ].map(({ key, label, desc, fn }) => {
                 const isLoading = csvLoading === key
                 const isDone    = csvDone    === key

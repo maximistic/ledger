@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { refreshFundMeta } from '@/lib/mfRefreshMeta'
 
 const BUY_TYPES  = new Set(['SIP', 'LUMPSUM', 'SWITCH_IN', 'DIVIDEND'])
 const SELL_TYPES = new Set(['REDEMPTION', 'SWITCH_OUT'])
@@ -95,9 +96,8 @@ export async function POST(request: Request) {
     console.log('[POST /api/mf] created fund:', fund.id)
 
     if (fund.amfiCode) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-      fetch(`${baseUrl}/api/mf/${fund.id}/refresh-meta`, { method: 'GET' }).catch(err => {
-        console.log('[POST /api/mf] Background refresh failed:', err)
+      setImmediate(() => {
+        refreshFundMeta(fund.id).catch(err => console.error('[POST /api/mf] Background refresh failed:', err))
       })
     }
 

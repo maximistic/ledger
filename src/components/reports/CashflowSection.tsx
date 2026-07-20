@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-type BadgeKey = 'STOCK' | 'SIP' | 'LUMPSUM' | 'EPF' | 'RD' | 'FD' | 'INTL'
+type BadgeKey = 'STOCK' | 'SIP' | 'LUMPSUM' | 'EPF' | 'RD' | 'FD' | 'INTL' | 'CUSTOM'
 
 interface CashflowTxn {
   date: string
@@ -21,6 +21,7 @@ interface Summary {
   rd: number
   fd: number
   us: number
+  custom?: number
 }
 
 interface CashflowData {
@@ -39,6 +40,7 @@ const BADGE: Record<BadgeKey, { bg: string; color: string }> = {
   RD:      { bg: '#FEF3C7', color: '#92400E' },
   FD:      { bg: '#FFFBEB', color: '#B45309' },
   INTL:    { bg: '#F5F3FF', color: '#7C3AED' },
+  CUSTOM:  { bg: '#F5F0FF', color: '#7C3AED' },
 }
 
 const SK: React.CSSProperties = {
@@ -128,12 +130,13 @@ export default function CashflowSection() {
   const strip: Array<{ label: string; value: number; count: number }> = []
   if (summary) {
     strip.push({ label: 'TOTAL', value: summary.total, count: txns.length })
-    if (summary.stocks > 0) strip.push({ label: 'STOCKS', value: summary.stocks, count: txns.filter(t => t.badge === 'STOCK').length })
-    if (summary.mf     > 0) strip.push({ label: 'MF',     value: summary.mf,     count: txns.filter(t => t.badge === 'SIP' || t.badge === 'LUMPSUM').length })
-    if (summary.epf    > 0) strip.push({ label: 'EPF',    value: summary.epf,    count: txns.filter(t => t.badge === 'EPF').length })
-    if (summary.fd     > 0) strip.push({ label: 'FD',     value: summary.fd,     count: txns.filter(t => t.badge === 'FD').length })
-    if (summary.rd     > 0) strip.push({ label: 'RD',     value: summary.rd,     count: txns.filter(t => t.badge === 'RD').length })
-    if (summary.us     > 0) strip.push({ label: 'INTL',   value: summary.us,     count: txns.filter(t => t.badge === 'INTL').length })
+    if (summary.stocks         > 0) strip.push({ label: 'STOCKS', value: summary.stocks,         count: txns.filter(t => t.badge === 'STOCK').length })
+    if (summary.mf             > 0) strip.push({ label: 'MF',     value: summary.mf,             count: txns.filter(t => t.badge === 'SIP' || t.badge === 'LUMPSUM').length })
+    if (summary.epf            > 0) strip.push({ label: 'EPF',    value: summary.epf,            count: txns.filter(t => t.badge === 'EPF').length })
+    if (summary.fd             > 0) strip.push({ label: 'FD',     value: summary.fd,             count: txns.filter(t => t.badge === 'FD').length })
+    if (summary.rd             > 0) strip.push({ label: 'RD',     value: summary.rd,             count: txns.filter(t => t.badge === 'RD').length })
+    if (summary.us             > 0) strip.push({ label: 'INTL',   value: summary.us,             count: txns.filter(t => t.badge === 'INTL').length })
+    if ((summary.custom ?? 0)  > 0) strip.push({ label: 'CUSTOM', value: summary.custom ?? 0,    count: txns.filter(t => t.badge === 'CUSTOM').length })
   }
 
   return (
