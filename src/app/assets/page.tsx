@@ -581,7 +581,7 @@ export default function AssetsPage() {
       <div style={{ display: 'flex', gap: '16px' }}>
 
         {/* ── Left rail ───────────────────────────────────────────────────────── */}
-        <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
 
           {editingRail ? (
             /* ── Edit mode ──────────────────────────────────────────────────── */
@@ -625,6 +625,15 @@ export default function AssetsPage() {
               <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', padding: '0 4px', lineHeight: 1.4 }}>
                 Always visible · manage via the tab
               </div>
+
+              <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '2px 0' }} />
+
+              <button
+                onClick={() => { setEditingRail(false); setShowAddClassDialog(true) }}
+                style={{ width: '100%', padding: '8px 14px', borderRadius: '8px', border: '0.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={13} /> New asset class
+              </button>
 
               <button
                 onClick={() => setEditingRail(false)}
@@ -717,14 +726,6 @@ export default function AssetsPage() {
                   })}
                 </>
               )}
-
-              {/* New asset class button */}
-              <button
-                onClick={() => setShowAddClassDialog(true)}
-                style={{ padding: '9px 13px', borderRadius: '10px', border: '0.5px dashed var(--color-border)', background: 'transparent', cursor: 'pointer', fontSize: '12px', color: 'var(--color-text-muted)', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}
-              >
-                + New asset class
-              </button>
 
               {/* Edit sections */}
               <button

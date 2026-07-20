@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { formatINR, formatShort, formatShortSigned, formatPctSigned, formatDate } from '@/lib/utils'
 import AddEditEntryDialog, { type EntryItem } from './AddEditEntryDialog'
 
@@ -136,31 +136,65 @@ export default function CustomAssetTab({ classId, className, onSummaryRefresh, o
   return (
     <div>
       {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>
-          <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 600 }}>
-            {className}
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
-            {formatShort(d?.totalCurrentValue ?? 0)}
-          </div>
-          {(d?.entryCount ?? 0) > 0 && (
-            <div style={{ fontSize: '13px', marginTop: '4px' }}>
-              <span style={{ color: 'var(--color-text-muted)' }}>Purchase price </span>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{formatShort(d?.totalPurchasePrice ?? 0)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-              <span style={{ color: gainLossColor }}>{formatShortSigned(d?.totalGainLoss ?? 0)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-              <span style={{ color: gainLossColor }}>{formatPctSigned(d?.totalGainLossPct ?? 0)}</span>
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+              {className}
             </div>
-          )}
+            <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+              {formatShort(d?.totalCurrentValue ?? 0)}
+            </div>
+            {(d?.entryCount ?? 0) > 0 && (
+              <div style={{ fontSize: '13px', marginTop: '4px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Purchase price </span>
+                <span style={{ color: 'var(--color-text-secondary)' }}>{formatShort(d?.totalPurchasePrice ?? 0)}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                <span style={{ color: gainLossColor }}>{formatShortSigned(d?.totalGainLoss ?? 0)}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                <span style={{ color: gainLossColor }}>{formatPctSigned(d?.totalGainLossPct ?? 0)}</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              style={{ padding: '6px 13px', borderRadius: '7px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              <Trash2 size={14} /> Delete class
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              style={{ padding: '7px 14px', borderRadius: '6px', border: 'none', background: 'var(--color-text-primary)', color: 'var(--color-surface)', fontSize: '12.5px', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+            >
+              <Plus size={13} /> Add entry
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          style={{ padding: '7px 14px', borderRadius: '6px', border: 'none', background: 'var(--color-text-primary)', color: 'var(--color-surface)', fontSize: '12.5px', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
-        >
-          <Plus size={13} /> Add entry
-        </button>
+
+        {/* Inline delete confirmation strip */}
+        {deleteConfirm && (
+          <div style={{ marginTop: '12px', background: '#FFF5F5', border: '0.5px solid #FECDD3', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12.5px', color: '#DC2626', lineHeight: 1.4 }}>
+              Delete <strong>{className}</strong> and all its entries? This cannot be undone.
+            </span>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button
+                onClick={() => setDeleteConfirm(false)}
+                style={{ padding: '5px 12px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteClass}
+                disabled={deletingClass}
+                style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#DC2626', color: '#fff', fontSize: '12px', fontFamily: 'inherit', cursor: deletingClass ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: deletingClass ? 0.7 : 1 }}
+              >
+                {deletingClass ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table or empty state */}
@@ -287,34 +321,6 @@ export default function CustomAssetTab({ classId, className, onSummaryRefresh, o
           </div>
         </div>
       )}
-
-      {/* Delete class */}
-      <div style={{ marginTop: '28px', paddingTop: '16px', borderTop: '0.5px solid var(--color-border)' }}>
-        {deleteConfirm ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', color: '#DC2626' }}>
-              This will delete {d?.entryCount ?? 0} {(d?.entryCount ?? 0) === 1 ? 'entry' : 'entries'}. Are you sure?
-            </span>
-            <button onClick={() => setDeleteConfirm(false)} style={{ padding: '5px 12px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button
-              onClick={handleDeleteClass}
-              disabled={deletingClass}
-              style={{ padding: '5px 12px', borderRadius: '6px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              {deletingClass ? 'Deleting…' : 'Delete class'}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setDeleteConfirm(true)}
-            style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
-          >
-            Delete this asset class
-          </button>
-        )}
-      </div>
 
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
 

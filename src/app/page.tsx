@@ -48,7 +48,8 @@ interface DashboardSummary {
     fd:       { value: number; invested: number }
     rd:       { value: number; invested: number }
     usStocks: { value: number; invested: number }
-    custom?:  { value: number; count: number; classes: { id: string; name: string; value: number }[] }
+    custom?:        { value: number; count: number }
+    customClasses?: { id: string; name: string; value: number; purchasePrice: number }[]
   }
 }
 
@@ -348,23 +349,32 @@ export default function DashboardPage() {
   }
 
   // Pie segments (r=70, cx=cy=80, SVG 160×160)
+  const CUSTOM_COLORS = ['#C4A45A', '#7ABFB8', '#B07CC6', '#E8956D', '#6B9E78']
+
   const pieSegments = summary ? (() => {
-    const { allocation: a, breakdown: b } = summary
-    const fdRdPct = (a.fd ?? 0) + (a.rd ?? 0)
+    const { breakdown: b } = summary
+    const totalNW = summary.totalNetWorth || 1
+
+    // Sort custom classes by value, top 3 get own slices, rest grouped
+    const allCustom = [...(b.customClasses ?? [])].sort((a, c) => c.value - a.value)
+    const topCustom = allCustom.slice(0, 3)
+    const otherCustomVal = allCustom.slice(3).reduce((s, c) => s + c.value, 0)
+
     const segs = [
-      { label: 'Stocks',        pct: a.stocks ?? 0,   val: b.stocks.value,          color: '#111111' },
-      { label: 'Mutual Funds',  pct: a.mf ?? 0,       val: b.mf.value,              color: '#E8E4DC' },
-      { label: 'EPF',           pct: a.epf ?? 0,      val: b.epf.value,             color: '#16A34A' },
-      { label: 'FDs & RDs',     pct: fdRdPct,         val: b.fd.value + b.rd.value, color: '#D97706' },
-      { label: 'International', pct: a.usStocks ?? 0, val: b.usStocks.value,        color: '#6366F1' },
-      ...(((a.custom ?? 0) > 0.5)
-        ? [{ label: 'Other', pct: a.custom ?? 0, val: b.custom?.value ?? 0, color: '#C4A45A' }]
-        : []),
-    ]
+      { label: 'Stocks',        val: b.stocks.value,          color: '#111111' },
+      { label: 'Mutual Funds',  val: b.mf.value,              color: '#E8E4DC' },
+      { label: 'EPF',           val: b.epf.value,             color: '#16A34A' },
+      { label: 'FDs & RDs',     val: b.fd.value + b.rd.value, color: '#D97706' },
+      { label: 'International', val: b.usStocks.value,        color: '#6366F1' },
+      ...topCustom.map((c, i) => ({ label: c.name, val: c.value, color: CUSTOM_COLORS[i] })),
+      ...(otherCustomVal > 0 ? [{ label: 'Other', val: otherCustomVal, color: '#C8C4BC' }] : []),
+    ].filter(s => s.val > 0)
+
     const cx = 80, cy = 80, r = 70
     let angle = -Math.PI / 2
     return segs.map(s => {
-      const sweep = (s.pct / 100) * 2 * Math.PI
+      const pct   = (s.val / totalNW) * 100
+      const sweep = (pct / 100) * 2 * Math.PI
       const sx = cx + r * Math.cos(angle)
       const sy = cy + r * Math.sin(angle)
       angle += sweep
@@ -372,7 +382,7 @@ export default function DashboardPage() {
       const ey = cy + r * Math.sin(angle)
       const largeArc = sweep > Math.PI ? 1 : 0
       const path = `M ${cx},${cy} L ${sx.toFixed(2)},${sy.toFixed(2)} A ${r},${r} 0 ${largeArc},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`
-      return { ...s, pctStr: `${Math.round(s.pct)}%`, valStr: formatShort(s.val), path, show: s.pct > 0.5 }
+      return { ...s, pct, pctStr: `${Math.round(pct)}%`, valStr: formatShort(s.val), path, show: pct > 0.5 }
     })
   })() : null
 

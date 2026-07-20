@@ -406,6 +406,7 @@ html {
   -ms-overflow-style: none;
 }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
+.assets-rail::-webkit-scrollbar { display: none; }
 
 /* ── Bottom tab bar — hidden by default, shown on mobile ────── */
 .bottom-tab-bar { display: none; }

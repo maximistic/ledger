@@ -170,14 +170,15 @@ export async function GET() {
         rd:       { value: rdValue,     invested: rdInvested },
         usStocks: { value: usTotal,     invested: usStocksInvested },
         custom: {
-          value:   customTotal,
-          count:   customClasses.length,
-          classes: customClasses.map(c => ({
-            id:    c.id,
-            name:  c.name,
-            value: c.entries.reduce((s, e) => s + e.currentValue, 0),
-          })),
+          value: customTotal,
+          count: customClasses.length,
         },
+        customClasses: customClasses.map(c => ({
+          id:            c.id,
+          name:          c.name,
+          value:         c.entries.reduce((s, e) => s + e.currentValue, 0),
+          purchasePrice: c.entries.reduce((s, e) => s + e.purchasePrice, 0),
+        })).filter(c => c.value > 0),
       },
     })
   } catch (error) {
