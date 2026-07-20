@@ -39,6 +39,7 @@ interface DashboardSummary {
     fd: number
     rd: number
     usStocks: number
+    custom?: number
   }
   breakdown: {
     stocks:   { value: number; invested: number }
@@ -47,6 +48,7 @@ interface DashboardSummary {
     fd:       { value: number; invested: number }
     rd:       { value: number; invested: number }
     usStocks: { value: number; invested: number }
+    custom?:  { value: number; count: number; classes: { id: string; name: string; value: number }[] }
   }
 }
 
@@ -355,6 +357,9 @@ export default function DashboardPage() {
       { label: 'EPF',           pct: a.epf ?? 0,      val: b.epf.value,             color: '#16A34A' },
       { label: 'FDs & RDs',     pct: fdRdPct,         val: b.fd.value + b.rd.value, color: '#D97706' },
       { label: 'International', pct: a.usStocks ?? 0, val: b.usStocks.value,        color: '#6366F1' },
+      ...(((a.custom ?? 0) > 0.5)
+        ? [{ label: 'Other', pct: a.custom ?? 0, val: b.custom?.value ?? 0, color: '#C4A45A' }]
+        : []),
     ]
     const cx = 80, cy = 80, r = 70
     let angle = -Math.PI / 2

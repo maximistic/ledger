@@ -53,15 +53,24 @@ function classifyMF(fundCategory: string | null): 'equity' | 'debt' | 'gold' | '
   return 'equity'
 }
 
+function classifyCustom(className: string): 'equity' | 'debt' | 'gold' | 'international' {
+  const lower = className.toLowerCase()
+  if (lower.includes('gold') || lower.includes('silver'))              return 'gold'
+  if (lower.includes('crypto'))                                        return 'international'
+  if (lower.includes('ppf') || lower.includes('nps') || lower.includes('bond')) return 'debt'
+  return 'equity'
+}
+
 export async function GET() {
   try {
-    const [stocks, mfs, epfAccounts, fds, rds, usStocks] = await Promise.all([
+    const [stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses] = await Promise.all([
       prisma.stock.findMany(),
       prisma.mutualFund.findMany(),
       prisma.ePFAccount.findMany(),
       prisma.fDAccount.findMany(),
       prisma.rDAccount.findMany(),
       prisma.uSStock.findMany(),
+      prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
 
     const stocksValue    = stocks.reduce((s, x) => s + x.currentValue, 0)
@@ -80,10 +89,14 @@ export async function GET() {
     const rdValue    = rds.reduce((s, x) => s + x.currentValue, 0)
     const rdInvested = rds.reduce((s, x) => s + x.totalInvested, 0)
 
-    const usTotal        = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
+    const usTotal         = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
     const usStocksInvested = usStocks.reduce((s, x) => s + x.investedValueINR, 0)
 
-    const totalNetWorth = stocksValue + mfValue + epfTotal + fdValue + rdValue + usTotal
+    const customTotal = customClasses.reduce(
+      (sum, cls) => sum + cls.entries.reduce((s, e) => s + e.currentValue, 0), 0
+    )
+
+    const totalNetWorth = stocksValue + mfValue + epfTotal + fdValue + rdValue + usTotal + customTotal
     const totalInvested = stocksInvested + mfInvested + epfTotal + fdInvested + rdInvested + usStocksInvested
     const gainLoss      = totalNetWorth - totalInvested
     const gainLossPct   = totalInvested > 0 ? (gainLoss / totalInvested) * 100 : 0
@@ -115,15 +128,26 @@ export async function GET() {
     // US stocks are always international
     internationalValue += usTotal
 
+    // Custom assets classified by class name
+    for (const cls of customClasses) {
+      const clsValue = cls.entries.reduce((s, e) => s + e.currentValue, 0)
+      const bucket   = classifyCustom(cls.name)
+      if (bucket === 'equity')        equityValue        += clsValue
+      else if (bucket === 'debt')     debtValue          += clsValue
+      else if (bucket === 'gold')     goldValue          += clsValue
+      else                            internationalValue += clsValue
+    }
+
     const riskTotal = equityValue + debtValue + goldValue + internationalValue || 1
 
     const allocation = {
-      stocks:   totalNetWorth > 0 ? (stocksValue / totalNetWorth) * 100 : 0,
-      mf:       totalNetWorth > 0 ? (mfValue / totalNetWorth) * 100 : 0,
-      epf:      totalNetWorth > 0 ? (epfTotal / totalNetWorth) * 100 : 0,
-      fd:       totalNetWorth > 0 ? (fdValue / totalNetWorth) * 100 : 0,
-      rd:       totalNetWorth > 0 ? (rdValue / totalNetWorth) * 100 : 0,
-      usStocks: totalNetWorth > 0 ? (usTotal / totalNetWorth) * 100 : 0,
+      stocks:   totalNetWorth > 0 ? (stocksValue  / totalNetWorth) * 100 : 0,
+      mf:       totalNetWorth > 0 ? (mfValue       / totalNetWorth) * 100 : 0,
+      epf:      totalNetWorth > 0 ? (epfTotal      / totalNetWorth) * 100 : 0,
+      fd:       totalNetWorth > 0 ? (fdValue       / totalNetWorth) * 100 : 0,
+      rd:       totalNetWorth > 0 ? (rdValue       / totalNetWorth) * 100 : 0,
+      usStocks: totalNetWorth > 0 ? (usTotal       / totalNetWorth) * 100 : 0,
+      custom:   totalNetWorth > 0 ? (customTotal   / totalNetWorth) * 100 : 0,
     }
 
     return NextResponse.json({
@@ -145,6 +169,15 @@ export async function GET() {
         fd:       { value: fdValue,     invested: fdInvested },
         rd:       { value: rdValue,     invested: rdInvested },
         usStocks: { value: usTotal,     invested: usStocksInvested },
+        custom: {
+          value:   customTotal,
+          count:   customClasses.length,
+          classes: customClasses.map(c => ({
+            id:    c.id,
+            name:  c.name,
+            value: c.entries.reduce((s, e) => s + e.currentValue, 0),
+          })),
+        },
       },
     })
   } catch (error) {

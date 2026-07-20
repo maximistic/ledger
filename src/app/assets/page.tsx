@@ -10,10 +10,12 @@ import MutualFundsTab from '@/components/mf/MutualFundsTab'
 import EPFTab from '@/components/epf/EPFTab'
 import FDRDTab from '@/components/fdrd/FDRDTab'
 import USStocksTab from '@/components/usstocks/USStocksTab'
+import CustomAssetTab from '@/components/custom/CustomAssetTab'
+import AddAssetClassDialog from '@/components/custom/AddAssetClassDialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'stocks' | 'mf' | 'fd' | 'epf' | 'us'
+type Tab = string
 
 interface StockItem {
   id: string
@@ -34,10 +36,22 @@ interface StockItem {
   priceStale: boolean
 }
 
-// ─── Static rail data for non-stocks/mf/epf tabs ─────────────────────────────
+interface CustomClassSummary {
+  id: string
+  name: string
+  description: string | null
+  sortOrder: number
+  entryCount: number
+  totalCurrentValue: number
+  totalPurchasePrice: number
+  totalGainLoss: number
+  totalGainLossPct: number
+}
 
-const otherAssets: { value: Exclude<Tab, 'stocks' | 'mf' | 'epf'>; label: string; countLabel: string; invested: number }[] = [
-  { value: 'fd', label: 'FDs & RDs', countLabel: '2 accounts', invested: 200000 },
+// ─── Static rail data ─────────────────────────────────────────────────────────
+
+const otherAssets: { value: string; label: string; countLabel: string; invested: number }[] = [
+  { value: 'fd', label: 'FDs & RDs',    countLabel: '2 accounts', invested: 200000 },
   { value: 'us', label: 'International', countLabel: '4 holdings', invested: 85000  },
 ]
 
@@ -54,8 +68,6 @@ const SECTION_LABELS: Record<keyof typeof DEFAULT_VISIBILITY, string> = {
   fd:     'FDs & RDs',
   us:     'International',
 }
-
-const COMING_SOON_SECTIONS = ['Gold', 'Real Estate', 'PPF']
 
 // ─── Grid ─────────────────────────────────────────────────────────────────────
 
@@ -247,16 +259,12 @@ function StocksTable({
                 {formatINR(stock.avgPrice)}
               </div>
 
-              {/* LTP (current price) / stale indicator */}
+              {/* LTP */}
               <div style={{ textAlign: 'right' }}>
                 {stock.priceStale ? (
                   <div>
-                    <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      —
-                    </div>
-                    <div style={{ fontSize: '9.5px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
-                      Price not updated
-                    </div>
+                    <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>—</div>
+                    <div style={{ fontSize: '9.5px', color: 'var(--color-text-muted)', marginTop: '1px' }}>Price not updated</div>
                   </div>
                 ) : (
                   <div style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
@@ -337,11 +345,15 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
 
-  // Asset-level summary states (populated on mount so rail cards are correct before a tab is visited)
-  const [mfSummary,   setMFSummary]   = useState({ count: 0, invested: 0, currentValue: 0 })
-  const [epfSummary,  setEPFSummary]  = useState({ configured: false, corpus: 0 })
-  const [fdrdSummary, setFdrdSummary] = useState({ count: 0, currentValue: 0 })
-  const [usSummary,   setUSSummary]   = useState({ count: 0, currentValue: 0 })
+  // Asset-level summaries
+  const [mfSummary,     setMFSummary]     = useState({ count: 0, invested: 0, currentValue: 0 })
+  const [epfSummary,    setEPFSummary]    = useState({ configured: false, corpus: 0 })
+  const [fdrdSummary,   setFdrdSummary]   = useState({ count: 0, currentValue: 0 })
+  const [usSummary,     setUSSummary]     = useState({ count: 0, currentValue: 0 })
+  const [customClasses, setCustomClasses] = useState<CustomClassSummary[]>([])
+
+  // Dialogs
+  const [showAddClassDialog, setShowAddClassDialog] = useState(false)
 
   // Rail visibility (persisted to localStorage)
   const [railVisibility, setRailVisibility] = useState(() => {
@@ -355,7 +367,7 @@ export default function AssetsPage() {
   })
   const [editingRail, setEditingRail] = useState(false)
 
-  // Track dark mode by observing .dark class on <html>
+  // Dark mode
   const [isDark, setIsDark] = useState(false)
   useEffect(() => {
     const update = () => setIsDark(document.documentElement.classList.contains('dark'))
@@ -378,13 +390,12 @@ export default function AssetsPage() {
   const [refreshStatus, setRefreshStatus] = useState('')
   const refreshStatusTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Dialogs
+  // Stock dialogs
   const [showAdd, setShowAdd] = useState(false)
   const [editStock, setEditStock] = useState<StockItem | null>(null)
   const [txStock, setTxStock] = useState<StockItem | null>(null)
   const [showImport, setShowImport] = useState(false)
 
-  // Keep a ref to txStock so fetchStocks can update it without being a dependency
   const txStockRef = useRef<StockItem | null>(null)
   useEffect(() => { txStockRef.current = txStock }, [txStock])
 
@@ -398,7 +409,6 @@ export default function AssetsPage() {
       const freshStocks = data.stocks ?? []
       setStocks(freshStocks)
       setTotalIncludingZero(data.totalIncludingZero ?? 0)
-      // Keep TransactionDialog in sync with fresh stock data
       if (txStockRef.current) {
         const fresh = freshStocks.find(s => s.id === txStockRef.current!.id)
         if (fresh) setTxStock(fresh)
@@ -412,21 +422,20 @@ export default function AssetsPage() {
 
   useEffect(() => { fetchStocks() }, [fetchStocks])
 
-  // Pre-fetch MF + EPF summaries on mount so rail cards are populated before those tabs are visited.
-  // FD / US-stocks are included so their APIs are warm when those tabs are eventually built.
   const fetchSummaries = useCallback(async () => {
     try {
       const [mfRes, epfRes] = await Promise.all([
         fetch('/api/mf'),
         fetch('/api/epf'),
       ])
-      // FD + RD summaries for rail card
       const [fdRes, rdRes] = await Promise.all([
         fetch('/api/fd').catch(() => null),
         fetch('/api/rd').catch(() => null),
       ])
-      // US Stocks summary for rail card
-      const usRes = await fetch('/api/us-stocks').catch(() => null)
+      const [usRes, customRes] = await Promise.all([
+        fetch('/api/us-stocks').catch(() => null),
+        fetch('/api/custom-assets').catch(() => null),
+      ])
 
       if (mfRes.ok) {
         const data = await mfRes.json() as {
@@ -475,6 +484,11 @@ export default function AssetsPage() {
           currentValue: usData.totals?.totalCurrentValueINR ?? 0,
         })
       }
+
+      if (customRes?.ok) {
+        const customData = await customRes.json() as { classes?: CustomClassSummary[] }
+        setCustomClasses(customData.classes ?? [])
+      }
     } catch (err) {
       console.error('Failed to fetch asset summaries:', err)
     }
@@ -482,13 +496,15 @@ export default function AssetsPage() {
 
   useEffect(() => { fetchSummaries() }, [fetchSummaries])
 
-  // When a section is hidden while its tab is active, jump to the first visible section
+  // When a standard section is hidden while active, jump to first visible
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (activeTab.startsWith('custom-')) return
     if (!railVisibility[activeTab as keyof typeof DEFAULT_VISIBILITY]) {
       const firstVisible = Object.entries(railVisibility).find(([, v]) => v)?.[0]
-      if (firstVisible) setActiveTab(firstVisible as Tab)
+      if (firstVisible) setActiveTab(firstVisible)
     }
-  }, [railVisibility]) // intentionally omits activeTab — only runs when visibility changes
+  }, [railVisibility])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -507,40 +523,38 @@ export default function AssetsPage() {
     }
   }
 
-  // For the header stats, use displayCurrentValue (falls back to investedValue when price is stale)
-  const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
-  const stocksCurrent    = stocks.reduce((s, x) => s + x.displayCurrentValue, 0)
-  const stocksGain       = stocksCurrent - stocksInvested
-  const stocksGainPct    = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
-  const stocksGainColor  = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
+  const stocksInvested  = stocks.reduce((s, x) => s + x.investedValue, 0)
+  const stocksCurrent   = stocks.reduce((s, x) => s + x.displayCurrentValue, 0)
+  const stocksGain      = stocksCurrent - stocksInvested
+  const stocksGainPct   = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
+  const stocksGainColor = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
-  const activeOther = (activeTab !== 'stocks' && activeTab !== 'mf' && activeTab !== 'epf')
+  const activeOther = (!activeTab.startsWith('custom-') && activeTab !== 'stocks' && activeTab !== 'mf' && activeTab !== 'epf')
     ? otherAssets.find(a => a.value === activeTab)
     : null
 
-  // Dark mode rail card color helpers (light mode uses CSS variables unchanged)
-  const rCardBg    = (active: boolean) => isDark ? (active ? '#2E2B27' : '#252220') : 'var(--color-surface)'
-  const rBorder    = () => isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
-  const rRightBdr  = (active: boolean) => active
+  // Rail card color helpers
+  const rCardBg   = (active: boolean) => isDark ? (active ? '#2E2B27' : '#252220') : 'var(--color-surface)'
+  const rBorder   = () => isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
+  const rRightBdr = (active: boolean) => active
     ? `2px solid ${isDark ? '#F0EDE4' : 'var(--color-text-primary)'}`
     : '2px solid transparent'
-  const rLabel     = (active: boolean) => active
+  const rLabel    = (active: boolean) => active
     ? (isDark ? '#F0EDE4' : 'var(--color-text-primary)')
     : (isDark ? '#C8C4BC' : 'var(--color-text-muted)')
-  const rCount     = isDark ? '#6E6A62' : 'var(--color-text-muted)'
-  const rValue     = (active: boolean) => active
+  const rCount    = isDark ? '#6E6A62' : 'var(--color-text-muted)'
+  const rValue    = (active: boolean) => active
     ? (isDark ? '#F0EDE4' : 'var(--color-text-primary)')
     : (isDark ? '#C8C4BC' : 'var(--color-text-muted)')
   const editBtnBg  = isDark ? '#252220' : 'var(--color-surface-raised)'
   const editBtnTxt = isDark ? '#8A8680' : 'var(--color-text-muted)'
   const editBtnBdr = isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
 
-  // Empty state variant
   const allSold = stocks.length === 0 && totalIncludingZero > 0
 
   return (
     <>
-      {/* Mobile tab strip — shown only on mobile (≤768px) */}
+      {/* Mobile tab strip */}
       <div className="assets-mobile-strip hide-scrollbar">
         {SECTION_ORDER.filter(key => railVisibility[key]).map(key => {
           const active = activeTab === key
@@ -549,18 +563,13 @@ export default function AssetsPage() {
               key={key}
               onClick={() => setActiveTab(key)}
               style={{
-                flexShrink: 0,
-                padding: '6px 14px',
-                borderRadius: '20px',
-                fontSize: '12px',
-                fontFamily: 'inherit',
+                flexShrink: 0, padding: '6px 14px', borderRadius: '20px',
+                fontSize: '12px', fontFamily: 'inherit',
                 fontWeight: active ? 600 : 400,
                 border: active ? '1.5px solid var(--color-text-primary)' : '1px solid var(--color-border)',
                 background: active ? 'var(--color-text-primary)' : 'var(--color-surface)',
                 color: active ? 'var(--color-surface)' : 'var(--color-text-muted)',
-                cursor: 'pointer',
-                transition: 'all 140ms ease',
-                whiteSpace: 'nowrap',
+                cursor: 'pointer', transition: 'all 140ms ease', whiteSpace: 'nowrap',
               }}
             >
               {SECTION_LABELS[key]}
@@ -569,429 +578,281 @@ export default function AssetsPage() {
         })}
       </div>
 
-    <div style={{ display: 'flex', gap: '16px' }}>
+      <div style={{ display: 'flex', gap: '16px' }}>
 
-      {/* ── Left rail ───────────────────────────────────────────────────────── */}
-      <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* ── Left rail ───────────────────────────────────────────────────────── */}
+        <div className="assets-rail" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
-        {editingRail ? (
-          /* ── Edit mode: section chips ─────────────────────────────────────── */
-          <>
-            <div style={{
-              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px',
-              fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px',
-            }}>Sections</div>
+          {editingRail ? (
+            /* ── Edit mode ──────────────────────────────────────────────────── */
+            <>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px' }}>
+                Sections
+              </div>
 
-            {SECTION_ORDER.map(key => {
-              const selected = railVisibility[key]
-              return (
-                <div
-                  key={key}
-                  onClick={() => toggleSection(key)}
-                  style={{
-                    padding: '10px 14px', borderRadius: '10px',
-                    background: 'var(--color-surface-raised)',
-                    border: '0.5px solid var(--color-border)',
-                    borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    cursor: 'pointer', transition: 'all 140ms ease',
-                  }}
-                >
-                  <span style={{
-                    fontSize: '13px',
-                    color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                    fontWeight: selected ? 500 : 400,
-                  }}>
-                    {SECTION_LABELS[key]}
-                  </span>
-                  {selected ? (
-                    <div style={{
-                      width: '16px', height: '16px', borderRadius: '50%',
-                      background: 'var(--color-text-primary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <Check size={9} color="var(--color-surface)" strokeWidth={3} />
+              {SECTION_ORDER.map(key => {
+                const selected = railVisibility[key]
+                return (
+                  <div
+                    key={key}
+                    onClick={() => toggleSection(key)}
+                    style={{
+                      padding: '10px 14px', borderRadius: '10px',
+                      background: 'var(--color-surface-raised)',
+                      border: '0.5px solid var(--color-border)',
+                      borderRight: selected ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      cursor: 'pointer', transition: 'all 140ms ease',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', color: selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)', fontWeight: selected ? 500 : 400 }}>
+                      {SECTION_LABELS[key]}
+                    </span>
+                    {selected ? (
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Check size={9} color="var(--color-surface)" strokeWidth={3} />
+                      </div>
+                    ) : (
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '0.5px solid var(--color-border-subtle)', background: 'var(--color-surface-raised)', flexShrink: 0 }} />
+                    )}
+                  </div>
+                )
+              })}
+
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px', marginTop: '4px' }}>
+                Custom classes
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', padding: '0 4px', lineHeight: 1.4 }}>
+                Always visible · manage via the tab
+              </div>
+
+              <button
+                onClick={() => setEditingRail(false)}
+                style={{ width: '100%', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: 'inherit', marginTop: '4px' }}
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            /* ── Normal mode ────────────────────────────────────────────────── */
+            <>
+              {/* Stocks */}
+              {railVisibility.stocks && (
+                <div onClick={() => setActiveTab('stocks')} style={{ background: rCardBg(activeTab === 'stocks'), border: rBorder(), borderRight: rRightBdr(activeTab === 'stocks'), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(activeTab === 'stocks') }}>Stocks</div>
+                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(activeTab === 'stocks') }}>{formatShort(stocksInvested)}</div>
+                </div>
+              )}
+
+              {/* Mutual Funds */}
+              {railVisibility.mf && (() => {
+                const active = activeTab === 'mf'
+                const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
+                return (
+                  <div onClick={() => setActiveTab('mf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>Mutual Funds</div>
+                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(mfDisplay)}</div>
+                  </div>
+                )
+              })()}
+
+              {/* EPF */}
+              {railVisibility.epf && (() => {
+                const active = activeTab === 'epf'
+                return (
+                  <div onClick={() => setActiveTab('epf')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>EPF</div>
+                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{epfSummary.configured ? '1 account' : 'Not configured'}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}</div>
+                  </div>
+                )
+              })()}
+
+              {/* FDs & RDs */}
+              {railVisibility.fd && (() => {
+                const active = activeTab === 'fd'
+                return (
+                  <div onClick={() => setActiveTab('fd')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>FDs & RDs</div>
+                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{fdrdSummary.count > 0 ? `${fdrdSummary.count} account${fdrdSummary.count === 1 ? '' : 's'}` : 'No accounts'}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(fdrdSummary.currentValue)}</div>
+                  </div>
+                )
+              })()}
+
+              {/* US Stocks */}
+              {railVisibility.us && (() => {
+                const active = activeTab === 'us'
+                return (
+                  <div onClick={() => setActiveTab('us')} style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>International</div>
+                    <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(usSummary.currentValue)}</div>
+                  </div>
+                )
+              })()}
+
+              {/* Custom classes */}
+              {customClasses.length > 0 && (
+                <>
+                  <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '2px 0' }} />
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.7px', fontWeight: 600, padding: '0 2px', marginBottom: '-2px' }}>
+                    Custom
+                  </div>
+                  {customClasses.map(cls => {
+                    const active = activeTab === `custom-${cls.id}`
+                    return (
+                      <div
+                        key={cls.id}
+                        onClick={() => setActiveTab(`custom-${cls.id}`)}
+                        style={{ background: rCardBg(active), border: rBorder(), borderRight: rRightBdr(active), borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease' }}
+                      >
+                        <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, color: rLabel(active) }}>{cls.name}</div>
+                        <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>{cls.entryCount} {cls.entryCount === 1 ? 'entry' : 'entries'}</div>
+                        <div style={{ fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums', color: rValue(active) }}>{formatShort(cls.totalCurrentValue)}</div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* New asset class button */}
+              <button
+                onClick={() => setShowAddClassDialog(true)}
+                style={{ padding: '9px 13px', borderRadius: '10px', border: '0.5px dashed var(--color-border)', background: 'transparent', cursor: 'pointer', fontSize: '12px', color: 'var(--color-text-muted)', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}
+              >
+                + New asset class
+              </button>
+
+              {/* Edit sections */}
+              <button
+                onClick={() => setEditingRail(true)}
+                style={{ width: '100%', background: editBtnBg, border: editBtnBdr, borderRadius: '10px', padding: '10px 14px', color: editBtnTxt, fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <SlidersHorizontal size={13} />
+                Edit sections
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* ── Right content ───────────────────────────────────────────────────── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+
+          {activeTab === 'mf' ? (
+            <MutualFundsTab onSummaryRefresh={fetchSummaries} />
+          ) : activeTab === 'stocks' ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Stocks</div>
+                  <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+                    {formatShort(stocksCurrent)}
+                  </div>
+                  {!loading && stocks.length > 0 && (
+                    <div style={{ fontSize: '13px', marginTop: '4px' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>Invested </span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{formatShort(stocksInvested)}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                      <span style={{ color: stocksGainColor }}>{formatShortSigned(stocksGain)}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}> · </span>
+                      <span style={{ color: stocksGainColor }}>{formatPctSigned(stocksGainPct)}</span>
                     </div>
-                  ) : (
-                    <div style={{
-                      width: '16px', height: '16px', borderRadius: '50%',
-                      border: '0.5px solid var(--color-border-subtle)',
-                      background: 'var(--color-surface-raised)', flexShrink: 0,
-                    }} />
                   )}
                 </div>
-              )
-            })}
-
-            {/* Coming soon separator */}
-            <div style={{ height: '0.5px', background: 'var(--color-border)', margin: '4px 0' }} />
-
-            <div style={{
-              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px',
-              fontWeight: 600, color: 'var(--color-text-muted)', padding: '2px 4px',
-            }}>Coming soon</div>
-
-            {COMING_SOON_SECTIONS.map(name => (
-              <div
-                key={name}
-                style={{
-                  padding: '10px 14px', borderRadius: '10px',
-                  background: 'var(--color-surface-raised)',
-                  border: '0.5px solid var(--color-border)',
-                  borderRight: '2px solid transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  opacity: 0.6, cursor: 'default',
-                }}
-              >
-                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 400 }}>
-                  {name}
-                </span>
-                <span style={{
-                  fontSize: '9px', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase',
-                  color: 'var(--color-text-muted)', background: 'var(--color-border)',
-                  padding: '2px 6px', borderRadius: '4px',
-                }}>
-                  Soon
-                </span>
-              </div>
-            ))}
-
-            <button
-              onClick={() => setEditingRail(false)}
-              style={{
-                width: '100%', background: 'var(--color-text-primary)',
-                color: 'var(--color-surface)', borderRadius: '10px',
-                padding: '10px 14px', fontSize: '12px', fontWeight: 500,
-                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              Done
-            </button>
-          </>
-        ) : (
-          /* ── Normal mode: visible cards ───────────────────────────────────── */
-          <>
-            {/* Stocks */}
-            {railVisibility.stocks && (
-              <div
-                onClick={() => setActiveTab('stocks')}
-                style={{
-                  background: rCardBg(activeTab === 'stocks'),
-                  border: rBorder(),
-                  borderRight: rRightBdr(activeTab === 'stocks'),
-                  borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
-                }}
-              >
-                <div style={{
-                  fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                  color: rLabel(activeTab === 'stocks'),
-                }}>Stocks</div>
-                <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
-                  {stocks.length} {stocks.length === 1 ? 'holding' : 'holdings'}
-                </div>
-                <div style={{
-                  fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                  color: rValue(activeTab === 'stocks'),
-                }}>
-                  {formatShort(stocksInvested)}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                  <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={handleRefresh} disabled={refreshing} style={{ ...ghostBtnStyle, gap: '5px', opacity: refreshing ? 0.7 : 1 }}>
+                      <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                      {refreshing ? 'Updating…' : 'Refresh prices'}
+                    </button>
+                    <button onClick={() => setShowImport(true)} style={ghostBtnStyle}><Upload size={13} /> Import</button>
+                    <button onClick={() => setShowAdd(true)} style={primaryBtnStyle}><Plus size={13} /> Add stock</button>
+                  </div>
+                  {refreshStatus && <div style={{ fontSize: '11.5px', color: 'var(--color-gain)' }}>{refreshStatus}</div>}
                 </div>
               </div>
-            )}
 
-            {/* Mutual Funds */}
-            {railVisibility.mf && (() => {
-              const active = activeTab === 'mf'
-              const mfDisplay = mfSummary.currentValue > 0 ? mfSummary.currentValue : mfSummary.invested
-              return (
-                <div
-                  onClick={() => setActiveTab('mf')}
-                  style={{
-                    background: rCardBg(active),
-                    border: rBorder(),
-                    borderRight: rRightBdr(active),
-                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
-                  }}
-                >
-                  <div style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: rLabel(active),
-                  }}>Mutual Funds</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
-                    {mfSummary.count} {mfSummary.count === 1 ? 'scheme' : 'schemes'}
-                  </div>
-                  <div style={{
-                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: rValue(active),
-                  }}>
-                    {formatShort(mfDisplay)}
-                  </div>
+              {loading ? (
+                <SkeletonTable />
+              ) : fetchError ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', fontSize: '13px', color: 'var(--color-loss)' }}>
+                  {fetchError}
+                  <button onClick={fetchStocks} style={ghostBtnStyle}>Retry</button>
                 </div>
-              )
-            })()}
-
-            {/* EPF */}
-            {railVisibility.epf && (() => {
-              const active = activeTab === 'epf'
-              return (
-                <div
-                  onClick={() => setActiveTab('epf')}
-                  style={{
-                    background: rCardBg(active),
-                    border: rBorder(),
-                    borderRight: rRightBdr(active),
-                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
-                  }}
-                >
-                  <div style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: rLabel(active),
-                  }}>EPF</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
-                    {epfSummary.configured ? '1 account' : 'Not configured'}
-                  </div>
-                  <div style={{
-                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: rValue(active),
-                  }}>
-                    {epfSummary.configured ? formatShort(epfSummary.corpus) : '₹0'}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* FDs & RDs */}
-            {railVisibility.fd && (() => {
-              const active = activeTab === 'fd'
-              return (
-                <div
-                  onClick={() => setActiveTab('fd')}
-                  style={{
-                    background: rCardBg(active),
-                    border: rBorder(),
-                    borderRight: rRightBdr(active),
-                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
-                  }}
-                >
-                  <div style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: rLabel(active),
-                  }}>FDs & RDs</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
-                    {fdrdSummary.count > 0 ? `${fdrdSummary.count} account${fdrdSummary.count === 1 ? '' : 's'}` : 'No accounts'}
-                  </div>
-                  <div style={{
-                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: rValue(active),
-                  }}>
-                    {formatShort(fdrdSummary.currentValue)}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* US Stocks */}
-            {railVisibility.us && (() => {
-              const active = activeTab === 'us'
-              return (
-                <div
-                  onClick={() => setActiveTab('us')}
-                  style={{
-                    background: rCardBg(active),
-                    border: rBorder(),
-                    borderRight: rRightBdr(active),
-                    borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', transition: 'all 160ms ease',
-                  }}
-                >
-                  <div style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600,
-                    color: rLabel(active),
-                  }}>International</div>
-                  <div style={{ fontSize: '11px', color: rCount, marginTop: '2px' }}>
-                    {usSummary.count > 0 ? `${usSummary.count} holding${usSummary.count === 1 ? '' : 's'}` : 'No holdings'}
-                  </div>
-                  <div style={{
-                    fontSize: '15px', fontWeight: 600, marginTop: '6px', fontVariantNumeric: 'tabular-nums',
-                    color: rValue(active),
-                  }}>
-                    {formatShort(usSummary.currentValue)}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* Edit sections */}
-            <button
-              onClick={() => setEditingRail(true)}
-              style={{
-                width: '100%', background: editBtnBg,
-                border: editBtnBdr, borderRadius: '10px',
-                padding: '10px 14px', color: editBtnTxt,
-                fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px',
+              ) : allSold ? (
+                <AllSoldEmpty onImport={() => setShowImport(true)} />
+              ) : stocks.length === 0 ? (
+                <EmptyStocks onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} />
+              ) : (
+                <StocksTable stocks={stocks} onRowClick={s => setTxStock(s)} onEditClick={s => setEditStock(s)} />
+              )}
+            </>
+          ) : activeTab === 'epf' ? (
+            <EPFTab onCorpusChange={(corpus, hasAccount) => setEPFSummary({ configured: hasAccount, corpus })} />
+          ) : activeTab === 'fd' ? (
+            <FDRDTab onTotalsChange={t => setFdrdSummary({ count: t.count, currentValue: t.currentValue })} />
+          ) : activeTab === 'us' ? (
+            <USStocksTab onTotalsChange={t => setUSSummary({ count: t.count, currentValue: t.currentValue })} />
+          ) : activeTab.startsWith('custom-') ? (
+            <CustomAssetTab
+              classId={activeTab.replace('custom-', '')}
+              className={customClasses.find(c => c.id === activeTab.replace('custom-', ''))?.name ?? ''}
+              onSummaryRefresh={fetchSummaries}
+              onDelete={() => {
+                setActiveTab('stocks')
+                void fetchSummaries()
               }}
-            >
-              <SlidersHorizontal size={13} />
-              Edit sections
-            </button>
-          </>
+            />
+          ) : activeOther ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>{activeOther.label}</div>
+                  <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>{formatShort(activeOther.invested)}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+                {activeOther.label} — coming soon
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {/* ── Dialogs ─────────────────────────────────────────────────────────── */}
+
+        {showAdd && (
+          <AddEditStockDialog mode="add" onClose={() => setShowAdd(false)} onSuccess={fetchStocks} />
         )}
-      </div>
 
-      {/* ── Right content ───────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+        {editStock && (
+          <AddEditStockDialog mode="edit" stock={editStock} onClose={() => setEditStock(null)} onSuccess={() => { fetchStocks(); setEditStock(null) }} />
+        )}
 
-        {activeTab === 'mf' ? (
-          <MutualFundsTab onSummaryRefresh={fetchSummaries} />
-        ) : activeTab === 'stocks' ? (
-          <>
-            {/* Section header */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div>
-                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
-                  Stocks
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
-                  {formatShort(stocksCurrent)}
-                </div>
-                {!loading && stocks.length > 0 && (
-                  <div style={{ fontSize: '13px', marginTop: '4px' }}>
-                    <span style={{ color: 'var(--color-text-muted)' }}>Invested </span>
-                    <span style={{ color: 'var(--color-text-secondary)' }}>{formatShort(stocksInvested)}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-                    <span style={{ color: stocksGainColor }}>{formatShortSigned(stocksGain)}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-                    <span style={{ color: stocksGainColor }}>{formatPctSigned(stocksGainPct)}</span>
-                  </div>
-                )}
-              </div>
+        {txStock && (
+          <TransactionDialog stock={txStock} onClose={() => setTxStock(null)} onEdit={() => { setEditStock(txStock); setTxStock(null) }} onDelete={fetchStocks} onRefresh={fetchStocks} />
+        )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
-                  {/* Refresh prices */}
-                  <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    style={{ ...ghostBtnStyle, gap: '5px', opacity: refreshing ? 0.7 : 1 }}
-                  >
-                    <RefreshCw
-                      size={13}
-                      style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }}
-                    />
-                    {refreshing ? 'Updating…' : 'Refresh prices'}
-                  </button>
+        {showImport && (
+          <ImportDialog onClose={() => setShowImport(false)} onSuccess={fetchStocks} />
+        )}
 
-                  {/* Import */}
-                  <button onClick={() => setShowImport(true)} style={ghostBtnStyle}>
-                    <Upload size={13} /> Import
-                  </button>
-
-                  {/* Add stock */}
-                  <button onClick={() => setShowAdd(true)} style={primaryBtnStyle}>
-                    <Plus size={13} /> Add stock
-                  </button>
-                </div>
-
-                {/* Inline refresh status */}
-                {refreshStatus && (
-                  <div style={{ fontSize: '11.5px', color: 'var(--color-gain)' }}>{refreshStatus}</div>
-                )}
-              </div>
-            </div>
-
-            {/* Table area */}
-            {loading ? (
-              <SkeletonTable />
-            ) : fetchError ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', fontSize: '13px', color: 'var(--color-loss)' }}>
-                {fetchError}
-                <button onClick={fetchStocks} style={ghostBtnStyle}>Retry</button>
-              </div>
-            ) : allSold ? (
-              <AllSoldEmpty onImport={() => setShowImport(true)} />
-            ) : stocks.length === 0 ? (
-              <EmptyStocks onAdd={() => setShowAdd(true)} onImport={() => setShowImport(true)} />
-            ) : (
-              <StocksTable
-                stocks={stocks}
-                onRowClick={s => setTxStock(s)}
-                onEditClick={s => setEditStock(s)}
-              />
-            )}
-          </>
-        ) : activeTab === 'epf' ? (
-          <EPFTab
-            onCorpusChange={(corpus, hasAccount) => {
-              setEPFSummary({ configured: hasAccount, corpus })
+        {showAddClassDialog && (
+          <AddAssetClassDialog
+            onClose={() => setShowAddClassDialog(false)}
+            onSuccess={newClass => {
+              setCustomClasses(prev => [...prev, newClass as CustomClassSummary])
+              setActiveTab(`custom-${newClass.id}`)
+              setShowAddClassDialog(false)
+              void fetchSummaries()
             }}
           />
-        ) : activeTab === 'fd' ? (
-          <FDRDTab
-            onTotalsChange={t => setFdrdSummary({ count: t.count, currentValue: t.currentValue })}
-          />
-        ) : activeTab === 'us' ? (
-          <USStocksTab
-            onTotalsChange={t => setUSSummary({ count: t.count, currentValue: t.currentValue })}
-          />
-        ) : (
-          <>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div>
-                <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
-                  {activeOther?.label}
-                </div>
-                <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
-                  {formatShort(activeOther?.invested ?? 0)}
-                </div>
-              </div>
-            </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: '200px', color: 'var(--color-text-muted)', fontSize: '14px',
-            }}>
-              {activeOther?.label} — coming soon
-            </div>
-          </>
         )}
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
-
-      {/* ── Dialogs ─────────────────────────────────────────────────────────── */}
-
-      {showAdd && (
-        <AddEditStockDialog
-          mode="add"
-          onClose={() => setShowAdd(false)}
-          onSuccess={fetchStocks}
-        />
-      )}
-
-      {editStock && (
-        <AddEditStockDialog
-          mode="edit"
-          stock={editStock}
-          onClose={() => setEditStock(null)}
-          onSuccess={() => { fetchStocks(); setEditStock(null) }}
-        />
-      )}
-
-      {txStock && (
-        <TransactionDialog
-          stock={txStock}
-          onClose={() => setTxStock(null)}
-          onEdit={() => { setEditStock(txStock); setTxStock(null) }}
-          onDelete={fetchStocks}
-          onRefresh={fetchStocks}
-        />
-      )}
-
-      {showImport && (
-        <ImportDialog
-          onClose={() => setShowImport(false)}
-          onSuccess={fetchStocks}
-        />
-      )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
     </>
   )
 }

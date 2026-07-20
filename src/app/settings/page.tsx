@@ -26,7 +26,7 @@ type EditDialogState =
   | { type: 'SIP'; fundId: string; amount: number; dayOfMonth: number; status: string }
   | null
 
-type DangerKey = 'stocks' | 'mf' | 'all' | null
+type DangerKey = 'stocks' | 'mf' | 'customAssets' | 'all' | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -367,17 +367,25 @@ export default function SettingsPage() {
 
   // ── Danger zone ────────────────────────────────────────────────────────────
 
-  async function handleDanger(key: 'stocks' | 'mf') {
+  async function handleDanger(key: 'stocks' | 'mf' | 'customAssets') {
     setDangerLoading(true)
     try {
-      const endpoint = key === 'stocks' ? '/api/stocks/all' : '/api/mf/all'
+      const endpoint =
+        key === 'stocks'       ? '/api/stocks/all' :
+        key === 'mf'           ? '/api/mf/all'     :
+                                 '/api/custom-assets/all'
       const res = await fetch(endpoint, { method: 'DELETE' })
       if (res.ok) {
-        const label = key === 'stocks' ? 'Stocks reset.' : 'Mutual funds reset.'
+        const label =
+          key === 'stocks'       ? 'Stocks reset.'        :
+          key === 'mf'           ? 'Mutual funds reset.'  :
+                                   'Custom assets reset.'
         setDangerSuccess(prev => ({ ...prev, [key]: label }))
         setTimeout(() => setDangerSuccess(prev => { const n = { ...prev }; delete n[key]; return n }), 3000)
         setDangerConfirm(null)
       }
+    } catch (err) {
+      console.error('handleDanger error:', err)
     } finally { setDangerLoading(false) }
   }
 
@@ -394,6 +402,7 @@ export default function SettingsPage() {
         fetch('/api/us-stocks/all',          { method: 'DELETE' }),
         fetch('/api/dashboard/snapshot/all', { method: 'DELETE' }),
         fetch('/api/milestones/all',         { method: 'DELETE' }),
+        fetch('/api/custom-assets/all',      { method: 'DELETE' }),
       ])
       router.push('/assets')
     } finally { setDangerLoading(false) }
@@ -608,6 +617,12 @@ export default function SettingsPage() {
                 successMessage={dangerSuccess['mf']} confirming={dangerConfirm === 'mf'}
                 loading={dangerLoading && dangerConfirm === 'mf'}
                 onTrigger={() => setDangerConfirm('mf')} onCancel={() => setDangerConfirm(null)} onConfirm={() => handleDanger('mf')} borderBottom
+              />
+              <DangerRow
+                name="Reset custom assets" description="Deletes all custom asset classes and entries"
+                successMessage={dangerSuccess['customAssets']} confirming={dangerConfirm === 'customAssets'}
+                loading={dangerLoading && dangerConfirm === 'customAssets'}
+                onTrigger={() => setDangerConfirm('customAssets')} onCancel={() => setDangerConfirm(null)} onConfirm={() => handleDanger('customAssets')} borderBottom
               />
               <div style={{ padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
                 <div style={{ minWidth: 0 }}>
