@@ -33,14 +33,14 @@ interface CashflowData {
 }
 
 const BADGE: Record<BadgeKey, { bg: string; color: string }> = {
-  STOCK:   { bg: '#F0F0EE', color: '#555555' },
-  SIP:     { bg: '#F0FDF4', color: '#16A34A' },
-  LUMPSUM: { bg: '#EFF6FF', color: '#2563EB' },
-  EPF:     { bg: '#EEF2FF', color: '#4338CA' },
-  RD:      { bg: '#FEF3C7', color: '#92400E' },
-  FD:      { bg: '#FFFBEB', color: '#B45309' },
-  INTL:    { bg: '#F5F3FF', color: '#7C3AED' },
-  CUSTOM:  { bg: '#F5F0FF', color: '#7C3AED' },
+  STOCK:   { bg: 'var(--color-surface-raised)',      color: 'var(--color-text-secondary)'  },
+  SIP:     { bg: '#F0FDF4',                          color: '#16A34A'                      },
+  LUMPSUM: { bg: '#EFF6FF',                          color: '#2563EB'                      },
+  EPF:     { bg: '#EEF2FF',                          color: '#4338CA'                      },
+  RD:      { bg: 'var(--color-treemap-debt-bg)',     color: 'var(--color-treemap-debt-text)'  },
+  FD:      { bg: 'var(--color-treemap-gold-bg)',     color: 'var(--color-treemap-gold-text)'  },
+  INTL:    { bg: 'var(--color-treemap-intl-bg)',     color: 'var(--color-treemap-intl-text)'  },
+  CUSTOM:  { bg: '#F5F0FF',                          color: '#7C3AED'                      },
 }
 
 const SK: React.CSSProperties = {

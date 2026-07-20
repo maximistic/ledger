@@ -180,7 +180,7 @@ export default function AddFDDialog({ fd, onClose, onSuccess }: Props) {
           {/* FD Name */}
           <div>
             <div style={labelStyle}>FD Name</div>
-            <input ref={firstRef} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. HDFC FD – Jan 2025" style={inputStyle} onFocus={focusHandlers} onBlur={blurHandlers} />
+            <input ref={firstRef} value={name} onChange={e => setName(e.target.value)} placeholder={`e.g. HDFC FD – ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`} style={inputStyle} onFocus={focusHandlers} onBlur={blurHandlers} />
             {errors.name && <div style={errText}>{errors.name}</div>}
           </div>
 

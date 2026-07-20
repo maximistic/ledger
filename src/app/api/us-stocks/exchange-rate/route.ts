@@ -1,12 +1,13 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
+import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
 
 export async function GET() {
   try {
     const res = await fetch(
-      'https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X',
-      { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0' } },
+      yahooChartUrl('USDINR=X'),
+      { signal: AbortSignal.timeout(5000), headers: YAHOO_HEADERS },
     )
     if (!res.ok) throw new Error('Yahoo Finance returned non-OK')
     const data = await res.json() as {

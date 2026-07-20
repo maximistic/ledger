@@ -149,6 +149,27 @@ body {
   --chart-grid:            #F0EEE8;
   --chart-label:           #CCC8BE;
 
+  /* Asset class colors (pie chart, treemap, legend) */
+  --color-asset-stocks:    #111111;
+  --color-asset-mf:        #E8E4DC;
+  --color-asset-epf:       #16A34A;
+  --color-asset-fdrd:      #D97706;
+  --color-asset-us:        #6366F1;
+  --color-asset-custom-1:  #C4A45A;
+  --color-asset-custom-2:  #7ABFB8;
+  --color-asset-custom-3:  #B07CC6;
+  --color-asset-other:     #C8C4BC;
+
+  /* Treemap segment colors */
+  --color-treemap-equity-bg:   #111111;
+  --color-treemap-equity-text: rgba(255,255,255,0.9);
+  --color-treemap-debt-bg:     #FEF3C7;
+  --color-treemap-debt-text:   #92400E;
+  --color-treemap-gold-bg:     #FFFBEB;
+  --color-treemap-gold-text:   #D97706;
+  --color-treemap-intl-bg:     #EEF2FF;
+  --color-treemap-intl-text:   #6366F1;
+
   /* Shadows */
   --shadow-sm:             0 1px 3px rgba(0,0,0,0.06);
   --shadow-md:             0 4px 12px rgba(0,0,0,0.08);
@@ -221,6 +242,27 @@ body {
   --chart-fill:            rgba(240,237,228,0.08);
   --chart-grid:            #2E2B27;
   --chart-label:           #3A3733;
+
+  /* Asset class colors */
+  --color-asset-stocks:    #F0EDE4;
+  --color-asset-mf:        #3A3733;
+  --color-asset-epf:       #4ADE80;
+  --color-asset-fdrd:      #F59E0B;
+  --color-asset-us:        #818CF8;
+  --color-asset-custom-1:  #E8C87A;
+  --color-asset-custom-2:  #9EDDDA;
+  --color-asset-custom-3:  #CFA3E0;
+  --color-asset-other:     #6A6660;
+
+  /* Treemap segment colors */
+  --color-treemap-equity-bg:   #F0EDE4;
+  --color-treemap-equity-text: rgba(26,25,22,0.9);
+  --color-treemap-debt-bg:     #3A2E1A;
+  --color-treemap-debt-text:   #F59E0B;
+  --color-treemap-gold-bg:     #2E2918;
+  --color-treemap-gold-text:   #F59E0B;
+  --color-treemap-intl-bg:     #1E1D2E;
+  --color-treemap-intl-text:   #818CF8;
 
   /* Shadows — less visible on dark */
   --shadow-sm:             0 1px 3px rgba(0,0,0,0.2);

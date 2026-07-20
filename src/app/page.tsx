@@ -194,11 +194,11 @@ function formatMilestoneDate(d: string | null): string {
 }
 
 function eventDotColor(ev: UpcomingEvent): string {
-  if (ev.type === 'FD_MATURITY')      return ev.urgency === 'HIGH' ? '#DC2626' : '#D97706'
-  if (ev.type === 'RD_MATURITY')      return '#D97706'
-  if (ev.type === 'RD_INSTALLMENT')   return '#D97706'
-  if (ev.type === 'EPF_CONTRIBUTION') return '#6366F1'
-  return '#AAA8A0'
+  if (ev.type === 'FD_MATURITY')      return ev.urgency === 'HIGH' ? 'var(--color-loss)' : 'var(--color-asset-fdrd)'
+  if (ev.type === 'RD_MATURITY')      return 'var(--color-asset-fdrd)'
+  if (ev.type === 'RD_INSTALLMENT')   return 'var(--color-asset-fdrd)'
+  if (ev.type === 'EPF_CONTRIBUTION') return 'var(--color-asset-epf)'
+  return 'var(--color-text-muted)'
 }
 
 function eventTypeLabel(ev: UpcomingEvent): string {
@@ -349,8 +349,6 @@ export default function DashboardPage() {
   }
 
   // Pie segments (r=70, cx=cy=80, SVG 160×160)
-  const CUSTOM_COLORS = ['#C4A45A', '#7ABFB8', '#B07CC6', '#E8956D', '#6B9E78']
-
   const pieSegments = summary ? (() => {
     const { breakdown: b } = summary
     const totalNW = summary.totalNetWorth || 1
@@ -361,13 +359,13 @@ export default function DashboardPage() {
     const otherCustomVal = allCustom.slice(3).reduce((s, c) => s + c.value, 0)
 
     const segs = [
-      { label: 'Stocks',        val: b.stocks.value,          color: '#111111' },
-      { label: 'Mutual Funds',  val: b.mf.value,              color: '#E8E4DC' },
-      { label: 'EPF',           val: b.epf.value,             color: '#16A34A' },
-      { label: 'FDs & RDs',     val: b.fd.value + b.rd.value, color: '#D97706' },
-      { label: 'International', val: b.usStocks.value,        color: '#6366F1' },
-      ...topCustom.map((c, i) => ({ label: c.name, val: c.value, color: CUSTOM_COLORS[i] })),
-      ...(otherCustomVal > 0 ? [{ label: 'Other', val: otherCustomVal, color: '#C8C4BC' }] : []),
+      { label: 'Stocks',        val: b.stocks.value,          color: 'var(--color-asset-stocks)' },
+      { label: 'Mutual Funds',  val: b.mf.value,              color: 'var(--color-asset-mf)'     },
+      { label: 'EPF',           val: b.epf.value,             color: 'var(--color-asset-epf)'    },
+      { label: 'FDs & RDs',     val: b.fd.value + b.rd.value, color: 'var(--color-asset-fdrd)'   },
+      { label: 'International', val: b.usStocks.value,        color: 'var(--color-asset-us)'     },
+      ...topCustom.map((c, i) => ({ label: c.name, val: c.value, color: `var(--color-asset-custom-${i + 1})` })),
+      ...(otherCustomVal > 0 ? [{ label: 'Other', val: otherCustomVal, color: 'var(--color-asset-other)' }] : []),
     ].filter(s => s.val > 0)
 
     const cx = 80, cy = 80, r = 70
@@ -390,10 +388,10 @@ export default function DashboardPage() {
   const treemapSegments = summary?.riskProfile ? (() => {
     const rp = summary.riskProfile
     const DEFS = [
-      { key: 'equity'        as const, label: 'EQUITY', bg: '#111',    textColor: 'rgba(255,255,255,0.9)', labelColor: 'rgba(255,255,255,0.45)' },
-      { key: 'debt'          as const, label: 'DEBT',   bg: '#FEF3C7', textColor: '#92400E',               labelColor: '#92400E' },
-      { key: 'gold'          as const, label: 'GOLD',   bg: '#FFFBEB', textColor: '#D97706',               labelColor: '#B45309' },
-      { key: 'international' as const, label: 'INTL',   bg: '#EEF2FF', textColor: '#6366F1',               labelColor: '#4338CA' },
+      { key: 'equity'        as const, label: 'EQUITY', bg: 'var(--color-treemap-equity-bg)', textColor: 'var(--color-treemap-equity-text)', labelColor: 'var(--color-treemap-equity-text)' },
+      { key: 'debt'          as const, label: 'DEBT',   bg: 'var(--color-treemap-debt-bg)',   textColor: 'var(--color-treemap-debt-text)',   labelColor: 'var(--color-treemap-debt-text)'   },
+      { key: 'gold'          as const, label: 'GOLD',   bg: 'var(--color-treemap-gold-bg)',   textColor: 'var(--color-treemap-gold-text)',   labelColor: 'var(--color-treemap-gold-text)'   },
+      { key: 'international' as const, label: 'INTL',   bg: 'var(--color-treemap-intl-bg)',   textColor: 'var(--color-treemap-intl-text)',   labelColor: 'var(--color-treemap-intl-text)'   },
     ]
     return DEFS
       .map(d => ({ ...d, pct: rp[d.key].pct, value: rp[d.key].value }))
@@ -572,7 +570,7 @@ export default function DashboardPage() {
                   {/* Pie chart: r=70, cx=cy=80, SVG 160×160 */}
                   <svg width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
                     {pieSegments.filter(s => s.show).map(s => (
-                      <path key={s.label} d={s.path} fill={s.color} />
+                      <path key={s.label} d={s.path} style={{ fill: s.color }} />
                     ))}
                   </svg>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>

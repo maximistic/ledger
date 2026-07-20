@@ -1,6 +1,7 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
+import { MFAPI_BASE } from '@/lib/yahoo'
 
 const cache = new Map<string, { results: unknown[]; ts: number }>()
 const TTL   = 5 * 60 * 1000
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ results: cached.results })
 
     const res = await fetch(
-      `https://api.mfapi.in/mf/search?q=${encodeURIComponent(q)}`,
+      `${MFAPI_BASE}/search?q=${encodeURIComponent(q)}`,
       { signal: AbortSignal.timeout(10000) },
     )
     if (!res.ok) return NextResponse.json({ results: [] })

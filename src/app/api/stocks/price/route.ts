@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
 
 interface YahooResult {
   chart: {
@@ -38,15 +39,10 @@ export async function POST() {
 
       const stock  = stocks[i]
       const symbol = getYahooSymbol(stock.ticker, stock.exchange)
-      const url    = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`
+      const url    = yahooChartUrl(symbol)
 
       try {
-        const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; ledger-app/1.0)',
-            'Accept':     'application/json',
-          },
-        })
+        const res = await fetch(url, { headers: YAHOO_HEADERS })
 
         if (!res.ok) {
           failed++

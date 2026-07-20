@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
 
 interface YahooResult {
   chart: {
@@ -14,13 +15,8 @@ function sleep(ms: number) {
 
 async function fetchYahooPrice(symbol: string): Promise<number | null> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ledger-app/1.0)',
-        'Accept':     'application/json',
-      },
-    })
+    const url = yahooChartUrl(symbol)
+    const res = await fetch(url, { headers: YAHOO_HEADERS })
     if (!res.ok) return null
 
     const data = await res.json() as YahooResult

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { yahooChartUrl, YAHOO_HEADERS, mfapiUrl } from '@/lib/yahoo'
 
 export async function refreshFundMeta(fundId: string): Promise<void> {
   try {
@@ -13,8 +14,8 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
     try {
       const yahooTicker = `${fund.amfiCode}.BO`
       const yahooRes    = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}`,
-        { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } },
+        yahooChartUrl(yahooTicker),
+        { signal: AbortSignal.timeout(8000), headers: YAHOO_HEADERS },
       )
       if (yahooRes.ok) {
         const yahooData = await yahooRes.json() as {
@@ -33,10 +34,7 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
     // Step 2: Fallback to mfapi.in
     if (latestNav <= 0) {
       try {
-        const mfRes = await fetch(
-          `https://api.mfapi.in/mf/${fund.amfiCode}`,
-          { signal: AbortSignal.timeout(10000) },
-        )
+        const mfRes = await fetch(mfapiUrl(fund.amfiCode!), { signal: AbortSignal.timeout(10000) })
         if (mfRes.ok) {
           const mfData = await mfRes.json() as {
             meta?: { fund_house?: string; scheme_category?: string }
@@ -58,10 +56,7 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
     // Step 3: Fetch metadata separately if still missing
     if (!fundHouse || !fundCategory) {
       try {
-        const metaRes = await fetch(
-          `https://api.mfapi.in/mf/${fund.amfiCode}`,
-          { signal: AbortSignal.timeout(10000) },
-        )
+        const metaRes = await fetch(mfapiUrl(fund.amfiCode!), { signal: AbortSignal.timeout(10000) })
         if (metaRes.ok) {
           const metaData = await metaRes.json() as {
             meta?: { fund_house?: string; scheme_category?: string }

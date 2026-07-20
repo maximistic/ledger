@@ -2,16 +2,14 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { yahooChartUrl, YAHOO_HEADERS, mfapiUrl } from '@/lib/yahoo'
 
 const BATCH_SIZE = 3
 
 async function fetchNavFromYahoo(amfiCode: string): Promise<number> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${amfiCode}.BO`
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
-      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-    })
+    const url = yahooChartUrl(`${amfiCode}.BO`)
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000), headers: YAHOO_HEADERS })
     if (!res.ok) return 0
     const data = await res.json() as {
       chart?: { result?: Array<{ meta?: { regularMarketPrice?: number } }> }
@@ -25,10 +23,7 @@ async function fetchNavFromYahoo(amfiCode: string): Promise<number> {
 
 async function fetchNavFromMfapi(amfiCode: string): Promise<number> {
   try {
-    const res = await fetch(
-      `https://api.mfapi.in/mf/${amfiCode}`,
-      { signal: AbortSignal.timeout(10000) },
-    )
+    const res = await fetch(mfapiUrl(amfiCode), { signal: AbortSignal.timeout(10000) })
     if (!res.ok) return 0
     const data = await res.json() as { data?: Array<{ nav: string }> }
     return parseFloat(data?.data?.[0]?.nav ?? '0') || 0

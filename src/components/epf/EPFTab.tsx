@@ -131,6 +131,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
 
   const onCorpusChangeRef = useRef(onCorpusChange)
   useEffect(() => { onCorpusChangeRef.current = onCorpusChange }, [onCorpusChange])
+  useEffect(() => { if (account?.interestRate) setProjectionRate(account.interestRate) }, [account?.interestRate])
 
   const fetchData = useCallback(async () => {
     try {

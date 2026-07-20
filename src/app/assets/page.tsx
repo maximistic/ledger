@@ -50,11 +50,6 @@ interface CustomClassSummary {
 
 // ─── Static rail data ─────────────────────────────────────────────────────────
 
-const otherAssets: { value: string; label: string; countLabel: string; invested: number }[] = [
-  { value: 'fd', label: 'FDs & RDs',    countLabel: '2 accounts', invested: 200000 },
-  { value: 'us', label: 'International', countLabel: '4 holdings', invested: 85000  },
-]
-
 // ─── Rail visibility ──────────────────────────────────────────────────────────
 
 const DEFAULT_VISIBILITY = { stocks: true, mf: true, epf: true, fd: true, us: true }
@@ -592,10 +587,6 @@ export default function AssetsPage() {
   const stocksGainPct   = stocksInvested > 0 ? (stocksGain / stocksInvested) * 100 : 0
   const stocksGainColor = stocksGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
 
-  const activeOther = (!activeTab.startsWith('custom-') && activeTab !== 'stocks' && activeTab !== 'mf' && activeTab !== 'epf')
-    ? otherAssets.find(a => a.value === activeTab)
-    : null
-
   // Rail card color helpers
   const rCardBg   = (active: boolean) => isDark ? (active ? '#2E2B27' : '#252220') : 'var(--color-surface)'
   const rBorder   = () => isDark ? '0.5px solid #302D29' : '0.5px solid var(--color-border)'
@@ -903,18 +894,6 @@ export default function AssetsPage() {
                 void fetchSummaries()
               }}
             />
-          ) : activeOther ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>{activeOther.label}</div>
-                  <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>{formatShort(activeOther.invested)}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
-                {activeOther.label} — coming soon
-              </div>
-            </>
           ) : null}
         </div>
 
