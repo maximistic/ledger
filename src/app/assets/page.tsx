@@ -174,8 +174,8 @@ function StocksTable({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{
+    <div className="table-scroll-container" style={{ overflowX: 'auto' }}>
+      <div className="stocks-table-grid" style={{
         background: 'var(--color-surface)',
         border: '0.5px solid var(--color-border)',
         borderRadius: '10px',
@@ -609,7 +609,7 @@ export default function AssetsPage() {
   return (
     <>
       {/* Mobile tab strip */}
-      <div className="assets-mobile-strip hide-scrollbar">
+      <div className="assets-mobile-strip mobile-asset-chips hide-scrollbar">
         {SECTION_ORDER.filter(key => railVisibility[key]).map(key => {
           const active = activeTab === key
           return (
@@ -652,10 +652,10 @@ export default function AssetsPage() {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: '16px' }}>
+      <div className="assets-page-layout" style={{ display: 'flex', gap: '16px' }}>
 
         {/* ── Left rail ───────────────────────────────────────────────────────── */}
-        <div style={{ width: '192px', flexShrink: 0 }}>
+        <div className="assets-rail-col" style={{ width: '192px', flexShrink: 0 }}>
 
           {editingRail ? (
             /* ── Edit mode ──────────────────────────────────────────────────── */
@@ -847,7 +847,7 @@ export default function AssetsPage() {
         </div>
 
         {/* ── Right content ───────────────────────────────────────────────────── */}
-        <div className="assets-content-area" style={{ flex: 1, minWidth: 0 }}>
+        <div className="assets-content-area assets-content-col" style={{ flex: 1, minWidth: 0 }}>
 
           {activeTab === 'mf' ? (
             <MutualFundsTab onSummaryRefresh={fetchSummaries} />

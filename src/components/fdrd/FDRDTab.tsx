@@ -291,8 +291,8 @@ function FDRow({ fd, isLast, onClick }: { fd: FDAccount; isLast: boolean; onClic
 
 function FDTable({ fds, onRowClick }: { fds: FDAccount[]; onRowClick: (fd: FDAccount) => void }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '600px' }}>
+    <div className="table-scroll-container" style={{ overflowX: 'auto' }}>
+      <div className="fd-table-grid" style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '600px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
           <div style={hCell}>Name</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Principal</div>
@@ -363,8 +363,8 @@ function RDRow({ rd, isLast, onClick }: { rd: RDAccount; isLast: boolean; onClic
 
 function RDTable({ rds, onRowClick }: { rds: RDAccount[]; onRowClick: (rd: RDAccount) => void }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '600px' }}>
+    <div className="table-scroll-container" style={{ overflowX: 'auto' }}>
+      <div className="fd-table-grid" style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '600px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
           <div style={hCell}>Name</div>
           <div style={{ ...hCell, textAlign: 'right' }}>Monthly</div>

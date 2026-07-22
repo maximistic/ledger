@@ -44,7 +44,7 @@ export default function ReportsPage() {
   return (
     <>
       {/* Mobile tab strip */}
-      <div className="settings-mobile-tabs hide-scrollbar">
+      <div className="settings-mobile-tabs mobile-page-chips hide-scrollbar">
         {RAIL.map(({ key, label }) => {
           const active = activeSection === key
           return (
@@ -72,10 +72,10 @@ export default function ReportsPage() {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+      <div className="page-layout" style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
 
         {/* Left rail */}
-        <div className="assets-rail" style={{ width: '190px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div className="assets-rail page-rail-col" style={{ width: '190px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {RAIL.map(({ key, label, sub }) => {
             const active = activeSection === key
             return (
@@ -104,7 +104,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Right content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="page-content-col" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--color-text-primary)' }}>
               {title}

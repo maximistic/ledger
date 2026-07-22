@@ -472,6 +472,14 @@ html {
   border-radius: 0 10px 10px 0;
 }
 
+/* ── Mobile-only elements: hidden on desktop by default ────── */
+.assets-mobile-strip,
+.settings-mobile-tabs,
+.mobile-asset-chips,
+.mobile-page-chips {
+  display: none;
+}
+
 /* ── Mobile: ≤768px ──────────────────────────────────────────── */
 @media (max-width: 768px) {
 
@@ -494,10 +502,10 @@ html {
     display: none !important;
   }
 
-  /* Layout: 72px bottom padding clears the tab bar, no horizontal overflow */
+  /* Layout: 80px bottom padding clears the tab bar, clip prevents scrollbar */
   .main-content-wrapper {
-    padding: 16px 16px 72px 16px !important;
-    overflow-x: hidden !important;
+    padding: 16px 16px 80px 16px !important;
+    overflow-x: clip !important;
   }
 
   /* Assets / Settings: hide left rails on mobile */
@@ -509,7 +517,7 @@ html {
   /* Assets / Settings: show mobile chip strip */
   .assets-mobile-strip,
   .settings-mobile-tabs {
-    display: flex;
+    display: flex !important;
     overflow-x: auto;
     gap: 8px;
     padding-bottom: 12px;
@@ -646,10 +654,15 @@ html {
   /* ── FIX 4A: Section header action buttons wrap ──────────── */
 
   .section-header-actions {
+    display: flex !important;
     flex-wrap: wrap !important;
-    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: 100% !important;
   }
   .section-header-actions > button {
+    flex: 1 !important;
+    min-width: 100px !important;
+    justify-content: center !important;
     font-size: 12px !important;
     padding: 6px 10px !important;
   }
@@ -697,6 +710,73 @@ html {
   .assets-content-area {
     width: 100% !important;
   }
+
+  /* ── FIX 1: Assets page layout — rail hidden, content full ─ */
+  .assets-page-layout {
+    display: block !important;
+  }
+  .assets-rail-col {
+    display: none !important;
+  }
+  .assets-content-col {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 16px !important;
+  }
+
+  /* ── FIX 2: Mobile chip strip — sticky below nav bar ───── */
+  .mobile-asset-chips,
+  .mobile-page-chips {
+    display: flex !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    padding: 8px 0 8px 0 !important;
+    position: sticky !important;
+    top: 52px !important;
+    z-index: 10 !important;
+    background: var(--color-bg) !important;
+    border-bottom: 0.5px solid var(--color-border) !important;
+    margin: -8px -16px 0 -16px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .mobile-asset-chips::-webkit-scrollbar,
+  .mobile-page-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── FIX 4: Table horizontal scroll ─────────────────────── */
+  .table-scroll-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+  .stocks-table-grid {
+    min-width: 800px !important;
+  }
+  .mf-table-grid {
+    min-width: 700px !important;
+  }
+  .fd-table-grid {
+    min-width: 600px !important;
+  }
+
+  /* ── FIX 6: Reports / Settings page layout ───────────────── */
+  .page-layout {
+    display: block !important;
+  }
+  .page-rail-col {
+    display: none !important;
+  }
+  .page-content-col {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 16px !important;
+  }
 }
 
 /* ── Tablet: 769–1024px ──────────────────────────────────────── */
@@ -704,6 +784,16 @@ html {
   .assets-rail,
   .settings-rail {
     width: 150px !important;
+  }
+}
+
+/* ── Desktop: keep mobile-only chip strips hidden ───────────────── */
+@media (min-width: 769px) {
+  .mobile-asset-chips,
+  .mobile-page-chips,
+  .assets-mobile-strip,
+  .settings-mobile-tabs {
+    display: none !important;
   }
 }
 

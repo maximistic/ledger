@@ -124,8 +124,8 @@ function FundsTable({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{
+    <div className="table-scroll-container" style={{ overflowX: 'auto' }}>
+      <div className="mf-table-grid" style={{
         background: 'var(--color-surface)', border: '0.5px solid var(--color-border)',
         borderRadius: '10px', overflow: 'hidden', minWidth: '700px',
       }}>

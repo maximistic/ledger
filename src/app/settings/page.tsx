@@ -459,7 +459,7 @@ export default function SettingsPage() {
   return (
     <>
       {/* Mobile tab strip — shown only on mobile (≤768px) */}
-      <div className="settings-mobile-tabs hide-scrollbar">
+      <div className="settings-mobile-tabs mobile-page-chips hide-scrollbar">
         {RAIL.map(({ key, label }) => {
           const active    = activeSection === key
           const isDanger  = key === 'danger'
@@ -494,10 +494,10 @@ export default function SettingsPage() {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+      <div className="page-layout" style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
 
         {/* Left rail */}
-        <div className="settings-rail" style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div className="settings-rail page-rail-col" style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {RAIL.map(({ key, Icon, label, sub }) => {
             const active   = activeSection === key
             const isDanger = key === 'danger'
@@ -531,7 +531,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Right content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="page-content-col" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--color-text-primary)' }}>
               {title}
