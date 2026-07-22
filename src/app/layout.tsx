@@ -3,6 +3,7 @@ import { DM_Sans } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/context/ThemeContext"
 import Nav from "@/components/Nav"
+import { Analytics } from "@vercel/analytics/next"
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -55,6 +56,7 @@ export default function RootLayout({
             </div>
           </div>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   )
