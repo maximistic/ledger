@@ -137,12 +137,12 @@ export default function CustomAssetTab({ classId, className, onSummaryRefresh, o
     <div>
       {/* Section header */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div className="section-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 600 }}>
               {className}
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+            <div className="section-big-value" style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
               {formatShort(d?.totalCurrentValue ?? 0)}
             </div>
             {(d?.entryCount ?? 0) > 0 && (
@@ -156,7 +156,7 @@ export default function CustomAssetTab({ classId, className, onSummaryRefresh, o
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="section-header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               onClick={() => setDeleteConfirm(true)}
               style={{ padding: '6px 13px', borderRadius: '7px', border: '0.5px solid #FECDD3', background: '#FFF5F5', color: '#DC2626', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}

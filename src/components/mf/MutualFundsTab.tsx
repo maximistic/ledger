@@ -345,12 +345,12 @@ export default function MutualFundsTab({ onSummaryRefresh }: Props) {
   return (
     <>
       {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div className="section-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px', fontWeight: 600 }}>
             Mutual Funds
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+          <div className="section-big-value" style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
             {formatINR(totals.totalCurrentValue > 0 ? totals.totalCurrentValue : totals.totalInvested)}
           </div>
           {!loading && funds.length > 0 && (
@@ -370,7 +370,7 @@ export default function MutualFundsTab({ onSummaryRefresh }: Props) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={handleNavRefresh}
               disabled={refreshing}

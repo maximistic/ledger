@@ -442,12 +442,12 @@ export default function FDRDTab({ onTotalsChange }: Props) {
   return (
     <>
       {/* ── Section header ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div className="section-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
             FDs & RDs
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+          <div className="section-big-value" style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
             {loading ? '—' : formatINR(totalCurrentValue)}
           </div>
           {!loading && hasData && (
@@ -459,7 +459,7 @@ export default function FDRDTab({ onTotalsChange }: Props) {
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
           <button onClick={openAddFD} style={ghostBtnStyle}><Plus size={13} /> Add FD</button>
           <button onClick={openAddRD} style={primaryBtnStyle}><Plus size={13} /> Add RD</button>
         </div>

@@ -246,12 +246,12 @@ export default function EPFTab({ onCorpusChange }: Props) {
   return (
     <>
       {/* ── Section header ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div className="section-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
             EPF
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+          <div className="section-big-value" style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
             {formatINR(totalCorpus)}
           </div>
           <div style={{ fontSize: '13px', marginTop: '4px' }}>
@@ -268,7 +268,7 @@ export default function EPFTab({ onCorpusChange }: Props) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="section-header-actions" style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => setShowUpload(true)} style={ghostBtnStyle}>
             <Upload size={13} /> Upload passbook
           </button>

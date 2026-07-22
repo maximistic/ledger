@@ -80,7 +80,7 @@ interface Performers {
 
 interface UpcomingEvent {
   id: string
-  type: 'FD_MATURITY' | 'RD_MATURITY' | 'EPF_CONTRIBUTION' | 'RD_INSTALLMENT'
+  type: 'FD_MATURITY' | 'RD_MATURITY' | 'EPF_CONTRIBUTION' | 'RD_INSTALLMENT' | 'SIP'
   label: string
   date: string
   amount: number
@@ -198,6 +198,7 @@ function eventDotColor(ev: UpcomingEvent): string {
   if (ev.type === 'RD_MATURITY')      return 'var(--color-asset-fdrd)'
   if (ev.type === 'RD_INSTALLMENT')   return 'var(--color-asset-fdrd)'
   if (ev.type === 'EPF_CONTRIBUTION') return 'var(--color-asset-epf)'
+  if (ev.type === 'SIP')             return 'var(--color-asset-epf)'
   return 'var(--color-text-muted)'
 }
 
@@ -206,6 +207,7 @@ function eventTypeLabel(ev: UpcomingEvent): string {
   if (ev.type === 'RD_MATURITY')      return 'RD maturity'
   if (ev.type === 'RD_INSTALLMENT')   return 'RD'
   if (ev.type === 'EPF_CONTRIBUTION') return 'EPF'
+  if (ev.type === 'SIP')             return 'SIP'
   return ev.type
 }
 
@@ -568,12 +570,12 @@ export default function DashboardPage() {
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
                   {/* Pie chart: r=70, cx=cy=80, SVG 160×160 */}
-                  <svg width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
+                  <svg className="pie-chart-svg" width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
                     {pieSegments.filter(s => s.show).map(s => (
                       <path key={s.label} d={s.path} style={{ fill: s.color }} />
                     ))}
                   </svg>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>
+                  <div className="pie-chart-legend" style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>
                     {pieSegments.map(s => (
                       <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                         <div style={{ width: 10, height: 10, borderRadius: '2px', background: s.color, flexShrink: 0 }} />
@@ -614,10 +616,10 @@ export default function DashboardPage() {
                     height: '168px',
                   }}>
                     {/* Dominant block — left, full height */}
-                    <div style={{ background: dominant.bg, borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div className="treemap-block" style={{ background: dominant.bg, borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '10px', color: dominant.labelColor, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{dominant.label}</span>
                       <div>
-                        <div style={{ fontSize: domFs, fontWeight: 700, color: dominant.textColor, letterSpacing: '-1px', lineHeight: 1 }}>{dominant.pct}%</div>
+                        <div className="treemap-pct" style={{ fontSize: domFs, fontWeight: 700, color: dominant.textColor, letterSpacing: '-1px', lineHeight: 1 }}>{dominant.pct}%</div>
                         <div style={{ fontSize: '12px', color: dominant.labelColor, marginTop: '4px' }}>{formatShort(dominant.value)}</div>
                       </div>
                     </div>

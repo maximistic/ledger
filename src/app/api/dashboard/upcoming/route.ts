@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 interface UpcomingEvent {
   id:       string
-  type:     'FD_MATURITY' | 'RD_MATURITY' | 'EPF_CONTRIBUTION' | 'RD_INSTALLMENT'
+  type:     'FD_MATURITY' | 'RD_MATURITY' | 'EPF_CONTRIBUTION' | 'RD_INSTALLMENT' | 'SIP'
   label:    string
   date:     string
   amount:   number
@@ -42,12 +42,16 @@ export async function GET() {
     const now    = new Date()
     const cutoff = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
 
-    const [fds, rdsMaturingSoon, epfAccount, activeRDs] = await Promise.all([
+    const [fds, rdsMaturingSoon, epfAccount, activeRDs, activeSIPs] = await Promise.all([
       prisma.fDAccount.findMany({ where: { maturityDate: { gte: now, lte: cutoff } } }),
       prisma.rDAccount.findMany({ where: { maturityDate: { gte: now, lte: cutoff } } }),
       prisma.ePFAccount.findFirst({ where: { trackingStatus: 'ACTIVE' } }),
       // RDs still active beyond 90-day window — track upcoming installments
       prisma.rDAccount.findMany({ where: { maturityDate: { gt: cutoff } } }),
+      prisma.sipConfig.findMany({
+        where:   { status: 'ACTIVE' },
+        include: { fund: { select: { name: true } } },
+      }),
     ])
 
     const events: UpcomingEvent[] = []
@@ -106,6 +110,22 @@ export async function GET() {
           label:    `${rd.name} installment`,
           date:     nextDate.toISOString().split('T')[0],
           amount:   rd.monthlyAmount,
+          daysLeft: dl,
+          urgency:  toUrgency(dl),
+        })
+      }
+    }
+
+    for (const sip of activeSIPs) {
+      const nextDate = nextOccurrence(sip.dayOfMonth)
+      const dl       = daysFromNow(nextDate)
+      if (dl >= 0 && dl <= 90) {
+        events.push({
+          id:       sip.id,
+          type:     'SIP',
+          label:    `${sip.fund.name} SIP`,
+          date:     nextDate.toISOString().split('T')[0],
+          amount:   sip.amount,
           daysLeft: dl,
           urgency:  toUrgency(dl),
         })

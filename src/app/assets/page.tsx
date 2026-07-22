@@ -630,6 +630,26 @@ export default function AssetsPage() {
             </button>
           )
         })}
+        {customClasses.filter(cls => isCustomVisible(cls.id)).map(cls => {
+          const active = activeTab === `custom-${cls.id}`
+          return (
+            <button
+              key={cls.id}
+              onClick={() => setActiveTab(`custom-${cls.id}`)}
+              style={{
+                flexShrink: 0, padding: '6px 14px', borderRadius: '20px',
+                fontSize: '12px', fontFamily: 'inherit',
+                fontWeight: active ? 600 : 400,
+                border: active ? '1.5px solid var(--color-text-primary)' : '1px solid var(--color-border)',
+                background: active ? 'var(--color-text-primary)' : 'var(--color-surface)',
+                color: active ? 'var(--color-surface)' : 'var(--color-text-muted)',
+                cursor: 'pointer', transition: 'all 140ms ease', whiteSpace: 'nowrap',
+              }}
+            >
+              {cls.name}
+            </button>
+          )
+        })}
       </div>
 
       <div style={{ display: 'flex', gap: '16px' }}>
@@ -827,16 +847,16 @@ export default function AssetsPage() {
         </div>
 
         {/* ── Right content ───────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="assets-content-area" style={{ flex: 1, minWidth: 0 }}>
 
           {activeTab === 'mf' ? (
             <MutualFundsTab onSummaryRefresh={fetchSummaries} />
           ) : activeTab === 'stocks' ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div className="section-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Stocks</div>
-                  <div style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
+                  <div className="section-big-value" style={{ fontSize: '28px', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1 }}>
                     {formatShort(stocksCurrent)}
                   </div>
                   {!loading && stocks.length > 0 && (
