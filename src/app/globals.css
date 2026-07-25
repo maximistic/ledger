@@ -183,93 +183,93 @@ body {
    DARK THEME
    ------------------------------------------------------------ */
 .dark {
-  /* Backgrounds — warm brown-black */
-  --color-bg:              #1A1916;   /* page background */
-  --color-surface:         #211F1C;   /* cards, nav, panels */
-  --color-surface-raised:  #2A2724;   /* hover states, inputs */
+  /* Backgrounds */
+  --color-bg:              #16120D;
+  --color-surface:         #201A13;
+  --color-surface-raised:  #2A2219;
 
   /* Borders */
-  --color-border:          #2E2B27;   /* primary borders */
-  --color-border-subtle:   #252220;   /* row dividers */
+  --color-border:          #362C20;
+  --color-border-subtle:   #241D16;
 
   /* Text */
-  --color-text-primary:    #F0EDE4;   /* warm off-white */
-  --color-text-secondary:  #9A9590;   /* body text */
-  --color-text-muted:      #B8A99A;   /* labels, captions */
-  --color-text-disabled:   #3A3733;   /* disabled */
+  --color-text-primary:    #F5EDE2;
+  --color-text-secondary:  #B8A890;
+  --color-text-muted:      #8C7C64;
+  --color-text-disabled:   #4A3F30;
 
   /* Semantic */
-  --color-gain:            #34D399;
-  --color-gain-subtle:     rgba(52, 211, 153, 0.1);
-  --color-loss:            #FB7185;
-  --color-loss-subtle:     rgba(251, 113, 133, 0.1);
-  --color-neutral:         #F59E0B;
-  --color-neutral-subtle:  rgba(245,158,11,0.08);
+  --color-gain:            #6FCF97;
+  --color-gain-subtle:     rgba(111, 207, 151, 0.1);
+  --color-loss:            #E88A8A;
+  --color-loss-subtle:     rgba(232, 138, 138, 0.1);
+  --color-neutral:         #E0A548;
+  --color-neutral-subtle:  rgba(224, 165, 72, 0.08);
 
   /* Interactive */
-  --color-focus:           #F0EDE4;
+  --color-focus:           #F5EDE2;
 
   /* Nav */
-  --nav-bg:                #211F1C;
-  --nav-border:            #2E2B27;
-  --nav-text:              #7A7670;
-  --nav-text-active:       #F0EDE4;
-  --nav-indicator:         #F0EDE4;
+  --nav-bg:                #201A13;
+  --nav-border:            #362C20;
+  --nav-text:              #8C7C64;
+  --nav-text-active:       #F5EDE2;
+  --nav-indicator:         #F5EDE2;
 
   /* Buttons */
-  --btn-primary-bg:        #F0EDE4;
-  --btn-primary-text:      #1A1916;
-  --btn-ghost-border:      #2E2B27;
-  --btn-ghost-text:        #6E6A62;
+  --btn-primary-bg:        #F5EDE2;
+  --btn-primary-text:      #16120D;
+  --btn-ghost-border:      #362C20;
+  --btn-ghost-text:        #A8967C;
 
   /* Form fields */
-  --input-bg:              #211F1C;
-  --input-border:          #2E2B27;
-  --input-border-focus:    #F0EDE4;
-  --input-text:            #F0EDE4;
-  --input-placeholder:     #4A4740;
+  --input-bg:              #201A13;
+  --input-border:          #362C20;
+  --input-border-focus:    #F5EDE2;
+  --input-text:            #F5EDE2;
+  --input-placeholder:     #4A3F30;
 
   /* Chart colors */
-  --chart-mf:              #F0EDE4;   /* off-white on dark */
-  --chart-stock:           #4ADE80;
-  --chart-fd:              #F59E0B;
-  --chart-epf:             #818CF8;
-  --chart-us:              #38BDF8;
-  --chart-other:           #3A3733;
+  --chart-mf:              #F5EDE2;
+  --chart-stock:           #6FCF97;
+  --chart-fd:              #E0A548;
+  --chart-epf:             #8C93F0;
+  --chart-us:              #5EC8F0;
+  --chart-other:           #362C20;
 
   /* Chart UI */
-  --chart-line:            #F0EDE4;
-  --chart-fill:            rgba(240,237,228,0.08);
-  --chart-grid:            #2E2B27;
-  --chart-label:           #3A3733;
+  --chart-line:            #F5EDE2;
+  --chart-fill:            rgba(245, 237, 226, 0.08);
+  --chart-grid:            #241D16;
+  --chart-label:           #4A3F30;
 
   /* Asset class colors */
-  --color-asset-stocks:    #F0EDE4;
-  --color-asset-mf:        #3A3733;
-  --color-asset-epf:       #4ADE80;
-  --color-asset-fdrd:      #F59E0B;
-  --color-asset-us:        #818CF8;
-  --color-asset-custom-1:  #E8C87A;
-  --color-asset-custom-2:  #9EDDDA;
-  --color-asset-custom-3:  #CFA3E0;
-  --color-asset-other:     #6A6660;
+  --color-asset-stocks:    #F5EDE2;
+  --color-asset-mf:        #362C20;
+  --color-asset-epf:       #6FCF97;
+  --color-asset-fdrd:      #E0A548;
+  --color-asset-us:        #8C93F0;
+  --color-asset-custom-1:  #D9C17A;
+  --color-asset-custom-2:  #8FD4CC;
+  --color-asset-custom-3:  #C79EDB;
+  --color-asset-other:     #5A4F40;
 
   /* Treemap segment colors */
-  --color-treemap-equity-bg:   #F0EDE4;
-  --color-treemap-equity-text: rgba(26,25,22,0.9);
-  --color-treemap-debt-bg:     #3A2E1A;
-  --color-treemap-debt-text:   #F59E0B;
-  --color-treemap-gold-bg:     #2E2918;
-  --color-treemap-gold-text:   #F59E0B;
-  --color-treemap-intl-bg:     #1E1D2E;
-  --color-treemap-intl-text:   #818CF8;
+  --color-treemap-equity-bg:   #F5EDE2;
+  --color-treemap-equity-text: rgba(22, 18, 13, 0.9);
+  --color-treemap-debt-bg:     #3A2E18;
+  --color-treemap-debt-text:   #E0A548;
+  --color-treemap-gold-bg:     #2E2716;
+  --color-treemap-gold-text:   #E0A548;
+  --color-treemap-intl-bg:     #201F30;
+  --color-treemap-intl-text:   #8C93F0;
 
-  /* Shadows — less visible on dark */
-  --shadow-sm:             0 1px 3px rgba(0,0,0,0.2);
-  --shadow-md:             0 4px 12px rgba(0,0,0,0.3);
-  --shadow-lg:             0 8px 24px rgba(0,0,0,0.4);
+  /* Shadows */
+  --shadow-sm:             0 1px 3px rgba(0,0,0,0.25);
+  --shadow-md:             0 4px 12px rgba(0,0,0,0.35);
+  --shadow-lg:             0 8px 24px rgba(0,0,0,0.45);
 
-  --overlay-bg:            rgba(0,0,0,0.5);
+  --overlay-bg:            rgba(0,0,0,0.55);
 }
 
 /* ------------------------------------------------------------
