@@ -236,6 +236,7 @@ export default function DashboardPage() {
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
   const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; date: Date } | null>(null)
+  const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
   const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
 
@@ -625,12 +626,33 @@ export default function DashboardPage() {
                   {/* Pie chart: r=70, cx=cy=80, SVG 160×160 */}
                   <svg className="pie-chart-svg" width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
                     {pieSegments.filter(s => s.show).map(s => (
-                      <path key={s.label} d={s.path} style={{ fill: s.color }} />
+                      <path
+                        key={s.label}
+                        d={s.path}
+                        onMouseEnter={() => setHoveredSegment(s.label)}
+                        onMouseLeave={() => setHoveredSegment(null)}
+                        style={{
+                          fill: s.color,
+                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.5 : 1,
+                          transition: 'opacity 160ms ease',
+                          cursor: 'pointer',
+                        }}
+                      />
                     ))}
                   </svg>
                   <div className="pie-chart-legend" style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>
                     {pieSegments.map(s => (
-                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <div
+                        key={s.label}
+                        onMouseEnter={() => setHoveredSegment(s.label)}
+                        onMouseLeave={() => setHoveredSegment(null)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '7px',
+                          background: hoveredSegment === s.label ? 'var(--color-surface-raised)' : 'transparent',
+                          borderRadius: 6, padding: '3px 6px', margin: '-3px -6px',
+                          transition: 'background 160ms ease', cursor: 'pointer',
+                        }}
+                      >
                         <div style={{ width: 10, height: 10, borderRadius: '2px', background: s.color, flexShrink: 0 }} />
                         <span style={{ fontSize: '12.5px', color: '#555', flex: 1, minWidth: 0 }}>{s.label}</span>
                         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>{s.pctStr}</span>
