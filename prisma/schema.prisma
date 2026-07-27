@@ -288,3 +288,14 @@ model CustomAssetEntry {
 
   @@index([classId])
 }
+
+model SnapshotConfig {
+  id            String    @id @default(cuid())
+  enabled       Boolean   @default(true)
+  dayOfWeek     Int       @default(0)
+  hour          Int       @default(22)
+  refreshPrices Boolean   @default(true)
+  lastRunAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
