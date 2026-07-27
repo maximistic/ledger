@@ -15,7 +15,7 @@ function getPeriodStart(period: string): Date {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const period = searchParams.get('period') ?? '1M'
+    const period = searchParams.get('period') ?? '1Y'
     const from   = getPeriodStart(period)
 
     const snapshots = await prisma.snapshot.findMany({
