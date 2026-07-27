@@ -211,6 +211,13 @@ function eventTypeLabel(ev: UpcomingEvent): string {
   return ev.type
 }
 
+function getLabel(date: Date, period: string): string {
+  if (period === '1M') return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  if (period === '5Y') return date.toLocaleDateString('en-IN', { year: 'numeric' })
+  const showYear = date.getMonth() === 0
+  return date.toLocaleDateString('en-IN', { month: 'short', ...(showYear ? { year: '2-digit' } : {}) })
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -343,11 +350,11 @@ export default function DashboardPage() {
     fillD  = pathD + ' L900,160 L0,160 Z'
     lastPt = pts[pts.length - 1]
 
-    const step = Math.max(1, Math.floor(chartData.length / 12))
+    const step = Math.max(1, Math.floor(chartData.length / 8))
     for (let i = 0; i < chartData.length; i += step) {
-      monthLabels.push(new Date(chartData[i].date).toLocaleDateString('en-IN', { month: 'short' }))
+      monthLabels.push(getLabel(new Date(chartData[i].date), activeTab))
     }
-    monthLabels = monthLabels.slice(0, 12)
+    monthLabels = monthLabels.slice(0, 8)
   }
 
   // Pie segments (r=70, cx=cy=80, SVG 160×160)
