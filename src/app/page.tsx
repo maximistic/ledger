@@ -235,6 +235,7 @@ export default function DashboardPage() {
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
+  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; date: Date } | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
   const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
 
@@ -538,7 +539,23 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (
-          <>
+          <div style={{ position: 'relative' }}>
+            {hoveredPoint && (
+              <div style={{
+                position: 'absolute', top: 8, left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'var(--color-text-primary)',
+                color: 'var(--color-surface)',
+                borderRadius: 7, padding: '6px 11px',
+                fontSize: 12, pointerEvents: 'none', zIndex: 10,
+                fontFamily: 'DM Sans,sans-serif',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{formatINR(hoveredPoint.value)}</div>
+                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>
+                  {hoveredPoint.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
+                </div>
+              </div>
+            )}
             <svg viewBox="0 0 900 160" preserveAspectRatio="none" style={{ width: '100%', height: '160px', display: 'block' }}>
               <defs>
                 <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
@@ -550,11 +567,40 @@ export default function DashboardPage() {
               <path d={pathD} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} strokeLinecap="round" />
               <circle cx={lastPt.x} cy={lastPt.y} r={3.5} fill="var(--chart-line)" />
               <circle cx={lastPt.x} cy={lastPt.y} r={7}   fill="var(--chart-line)" fillOpacity={0.1} />
+              {hoveredPoint && (
+                <>
+                  <line x1={hoveredPoint.x} y1={0} x2={hoveredPoint.x} y2={160} stroke="var(--color-text-muted)" strokeDasharray="3 3" strokeWidth={1} />
+                  <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r={4} fill="var(--color-text-primary)" />
+                </>
+              )}
+              <rect x="0" y="0" width="900" height="160" fill="transparent"
+                onMouseMove={(e) => {
+                  const svg = e.currentTarget.closest('svg')
+                  if (!svg || !snapshots?.chartData?.length) return
+                  const rect = svg.getBoundingClientRect()
+                  const pct = (e.clientX - rect.left) / rect.width
+                  const data = snapshots.chartData
+                  const idx = Math.round(pct * (data.length - 1))
+                  const snap = data[Math.max(0, Math.min(idx, data.length - 1))]
+                  if (!snap) return
+                  const values = data.map(s => s.totalNetWorth)
+                  const min = Math.min(...values)
+                  const max = Math.max(...values)
+                  const range = max - min || 1
+                  setHoveredPoint({
+                    x: (idx / (data.length - 1)) * 900,
+                    y: 150 - ((snap.totalNetWorth - min) / range) * 130,
+                    value: snap.totalNetWorth,
+                    date: new Date(snap.date),
+                  })
+                }}
+                onMouseLeave={() => setHoveredPoint(null)}
+              />
             </svg>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#C8C4B8', marginTop: '6px' }}>
               {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
             </div>
-          </>
+          </div>
         )}
       </div>
 
