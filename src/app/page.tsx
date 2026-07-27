@@ -332,7 +332,7 @@ export default function DashboardPage() {
     const range  = maxVal - minVal || 1
     const pts    = chartData.map((s, i) => ({
       x: chartData.length === 1 ? 450 : (i / (chartData.length - 1)) * 900,
-      y: 95 - ((s.totalNetWorth - minVal) / range) * 85,
+      y: 150 - ((s.totalNetWorth - minVal) / range) * 130,
     }))
     pathD  = pts.reduce((d, pt, i) => {
       if (i === 0) return `M${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
@@ -340,7 +340,7 @@ export default function DashboardPage() {
       const cpx  = ((prev.x + pt.x) / 2).toFixed(1)
       return d + ` C${cpx},${prev.y.toFixed(1)} ${cpx},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
     }, '')
-    fillD  = pathD + ' L900,100 L0,100 Z'
+    fillD  = pathD + ' L900,160 L0,160 Z'
     lastPt = pts[pts.length - 1]
 
     const step = Math.max(1, Math.floor(chartData.length / 12))
@@ -532,7 +532,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            <svg viewBox="0 0 900 100" preserveAspectRatio="none" style={{ width: '100%', height: '100px', display: 'block' }}>
+            <svg viewBox="0 0 900 160" preserveAspectRatio="none" style={{ width: '100%', height: '160px', display: 'block' }}>
               <defs>
                 <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%"   stopColor="var(--chart-line)" stopOpacity={0.06} />
