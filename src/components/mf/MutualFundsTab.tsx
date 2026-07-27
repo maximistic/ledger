@@ -336,7 +336,7 @@ export default function MutualFundsTab({ onSummaryRefresh }: Props) {
 
   const filtered = funds.filter(f =>
     filter === 'sip'     ? (f.hasSIPTx || f.hasActiveSip)
-    : filter === 'lumpsum' ? f.hasLumpsumTx
+    : filter === 'lumpsum' ? (f.hasLumpsumTx || (!f.hasActiveSip && !f.hasSIPTransactions))
     : true
   )
 
