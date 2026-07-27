@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import CashflowSection   from '@/components/reports/CashflowSection'
 import MilestonesSection from '@/components/reports/MilestonesSection'
@@ -23,7 +23,7 @@ const SECTION_META: Record<ReportSection, { title: string; subtitle: string }> =
   xirr:       { title: 'XIRR',              subtitle: 'Annualised returns by asset class' },
 }
 
-export default function ReportsPage() {
+function ReportsContent() {
   const [activeSection, setActiveSection] = useState<ReportSection>('cashflow')
   const [subOverrides,  setSubOverrides]  = useState<Partial<Record<ReportSection, string>>>({})
   const searchParams = useSearchParams()
@@ -126,5 +126,13 @@ export default function ReportsPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReportsContent />
+    </Suspense>
   )
 }
