@@ -917,7 +917,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ ...TITLE_STYLE, marginBottom: 0 }}>Milestones</div>
             <button
-              onClick={() => router.push('/settings')}
+              onClick={() => router.push('/reports?section=milestones')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontFamily: 'inherit' }}
             >
               <Plus size={13} color="var(--color-text-muted)" />

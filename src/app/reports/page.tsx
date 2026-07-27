@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import CashflowSection   from '@/components/reports/CashflowSection'
 import MilestonesSection from '@/components/reports/MilestonesSection'
 import SnapshotsSection  from '@/components/reports/SnapshotsSection'
@@ -25,6 +26,12 @@ const SECTION_META: Record<ReportSection, { title: string; subtitle: string }> =
 export default function ReportsPage() {
   const [activeSection, setActiveSection] = useState<ReportSection>('cashflow')
   const [subOverrides,  setSubOverrides]  = useState<Partial<Record<ReportSection, string>>>({})
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const section = searchParams.get('section')
+    if (section) setActiveSection(section as ReportSection)
+  }, [searchParams])
 
   const onMilestoneLoaded = useCallback((sub: string) => {
     setSubOverrides(prev => ({ ...prev, milestones: sub }))
