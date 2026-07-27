@@ -235,7 +235,7 @@ export default function DashboardPage() {
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
-  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; date: Date } | null>(null)
+  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; date: Date; pct: number } | null>(null)
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
   const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
@@ -543,13 +543,19 @@ export default function DashboardPage() {
           <div style={{ position: 'relative' }}>
             {hoveredPoint && (
               <div style={{
-                position: 'absolute', top: 8, left: '50%',
-                transform: 'translateX(-50%)',
+                position: 'absolute', top: 8,
+                left: `${hoveredPoint.pct * 100}%`,
+                transform: hoveredPoint.pct < 0.2
+                  ? 'translateX(8px)'
+                  : hoveredPoint.pct > 0.8
+                    ? 'translateX(calc(-100% - 8px))'
+                    : 'translateX(-50%)',
                 background: 'var(--color-text-primary)',
                 color: 'var(--color-surface)',
                 borderRadius: 7, padding: '6px 11px',
                 fontSize: 12, pointerEvents: 'none', zIndex: 10,
                 fontFamily: 'DM Sans,sans-serif',
+                transition: 'left 60ms ease',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{formatINR(hoveredPoint.value)}</div>
                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>
@@ -593,6 +599,7 @@ export default function DashboardPage() {
                     y: 150 - ((snap.totalNetWorth - min) / range) * 130,
                     value: snap.totalNetWorth,
                     date: new Date(snap.date),
+                    pct,
                   })
                 }}
                 onMouseLeave={() => setHoveredPoint(null)}
@@ -633,8 +640,10 @@ export default function DashboardPage() {
                         onMouseLeave={() => setHoveredSegment(null)}
                         style={{
                           fill: s.color,
-                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.5 : 1,
-                          transition: 'opacity 160ms ease',
+                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.3 : 1,
+                          transform: hoveredSegment === s.label ? 'scale(1.08)' : 'scale(1)',
+                          transformOrigin: '80px 80px',
+                          transition: 'opacity 160ms ease, transform 160ms ease',
                           cursor: 'pointer',
                         }}
                       />
@@ -649,8 +658,9 @@ export default function DashboardPage() {
                         style={{
                           display: 'flex', alignItems: 'center', gap: '7px',
                           background: hoveredSegment === s.label ? 'var(--color-surface-raised)' : 'transparent',
+                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.5 : 1,
                           borderRadius: 6, padding: '3px 6px', margin: '-3px -6px',
-                          transition: 'background 160ms ease', cursor: 'pointer',
+                          transition: 'all 160ms ease', cursor: 'pointer',
                         }}
                       >
                         <div style={{ width: 10, height: 10, borderRadius: '2px', background: s.color, flexShrink: 0 }} />

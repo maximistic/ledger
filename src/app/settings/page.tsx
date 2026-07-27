@@ -2,11 +2,20 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Download, AlertTriangle } from 'lucide-react'
+import { RefreshCw, Download, AlertTriangle, Clock } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Section = 'recurring' | 'export' | 'danger'
+type Section = 'recurring' | 'export' | 'automation' | 'danger'
+
+interface SnapshotConfig {
+  id: string
+  enabled: boolean
+  dayOfWeek: number
+  hour: number
+  refreshPrices: boolean
+  lastRunAt: string | null
+}
 
 interface RecurringRule {
   id: string
@@ -66,6 +75,13 @@ function downloadCSV(data: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function formatHour(h: number): string {
+  if (h === 0)  return '12 AM'
+  if (h < 12)   return `${h} AM`
+  if (h === 12) return '12 PM'
+  return `${h - 12} PM`
+}
+
 const dateStr = new Date().toISOString().split('T')[0]
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -119,6 +135,11 @@ export default function SettingsPage() {
   // Export
   const [csvLoading, setCsvLoading] = useState<string | null>(null)
   const [csvDone,    setCsvDone]    = useState<string | null>(null)
+
+  // Automation
+  const [autoConfig,  setAutoConfig]  = useState<SnapshotConfig | null>(null)
+  const [autoLoading, setAutoLoading] = useState(false)
+  const [autoSaving,  setAutoSaving]  = useState(false)
 
   // Danger
   const [dangerConfirm, setDangerConfirm] = useState<DangerKey>(null)
@@ -209,6 +230,32 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeSection === 'recurring') fetchRules()
   }, [activeSection, fetchRules])
+
+  useEffect(() => {
+    if (activeSection !== 'automation') return
+    setAutoLoading(true)
+    fetch('/api/snapshot-config')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setAutoConfig(d.config) })
+      .finally(() => setAutoLoading(false))
+  }, [activeSection])
+
+  async function patchAutoConfig(patch: Partial<Pick<SnapshotConfig, 'enabled' | 'dayOfWeek' | 'hour' | 'refreshPrices'>>) {
+    setAutoSaving(true)
+    try {
+      const res = await fetch('/api/snapshot-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (res.ok) {
+        const d = await res.json() as { config: SnapshotConfig }
+        setAutoConfig(d.config)
+      }
+    } finally {
+      setAutoSaving(false)
+    }
+  }
 
   // Escape closes dialogs
   useEffect(() => {
@@ -441,15 +488,17 @@ export default function SettingsPage() {
   // ── Rail ───────────────────────────────────────────────────────────────────
 
   const RAIL = [
-    { key: 'recurring' as const, Icon: RefreshCw,    label: 'RECURRING',   sub: `${rules.length} active rules` },
-    { key: 'export'    as const, Icon: Download,      label: 'EXPORT DATA', sub: 'CSV downloads' },
-    { key: 'danger'    as const, Icon: AlertTriangle, label: 'DANGER ZONE', sub: 'Reset data' },
+    { key: 'recurring'  as const, Icon: RefreshCw,    label: 'RECURRING',   sub: `${rules.length} active rules` },
+    { key: 'export'     as const, Icon: Download,      label: 'EXPORT DATA', sub: 'CSV downloads' },
+    { key: 'automation' as const, Icon: Clock,         label: 'AUTOMATION',  sub: 'Snapshot schedule' },
+    { key: 'danger'     as const, Icon: AlertTriangle, label: 'DANGER ZONE', sub: 'Reset data' },
   ]
 
   const SECTION_META: Record<Section, { title: string; subtitle: string }> = {
-    recurring: { title: 'Recurring rules', subtitle: 'Auto-tracking schedules across your portfolio' },
-    export:    { title: 'Export data',     subtitle: 'Download your portfolio data as CSV' },
-    danger:    { title: 'Danger zone',     subtitle: 'These actions are permanent and cannot be undone' },
+    recurring:  { title: 'Recurring rules', subtitle: 'Auto-tracking schedules across your portfolio' },
+    export:     { title: 'Export data',     subtitle: 'Download your portfolio data as CSV' },
+    automation: { title: 'Automation',      subtitle: 'Schedule automatic net worth snapshots' },
+    danger:     { title: 'Danger zone',     subtitle: 'These actions are permanent and cannot be undone' },
   }
 
   const { title, subtitle } = SECTION_META[activeSection]
@@ -624,6 +673,96 @@ export default function SettingsPage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* ── AUTOMATION ── */}
+          {activeSection === 'automation' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {autoLoading || !autoConfig ? (
+                <div style={{ ...card, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: 14, width: i === 1 ? '40%' : '60%' }} />)}
+                </div>
+              ) : (
+                <>
+                  {/* Enable toggle */}
+                  <div style={card}>
+                    <div style={{ padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Auto snapshots</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Automatically save net worth at the scheduled time</div>
+                      </div>
+                      <button
+                        onClick={() => patchAutoConfig({ enabled: !autoConfig.enabled })}
+                        disabled={autoSaving}
+                        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoConfig.enabled ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
+                      >
+                        <div style={{ position: 'absolute', top: 2, left: autoConfig.enabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
+                      </button>
+                    </div>
+                    <div style={{ padding: '8px 22px 14px', fontSize: '12px', color: autoConfig.lastRunAt ? 'var(--color-text-muted)' : 'var(--color-text-muted)', borderTop: '0.5px solid var(--color-border)' }}>
+                      {autoConfig.lastRunAt
+                        ? `Last run: ${new Date(autoConfig.lastRunAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Never run'}
+                    </div>
+                  </div>
+
+                  {/* Schedule options (only when enabled) */}
+                  {autoConfig.enabled && (
+                    <div style={card}>
+                      {/* Day of week */}
+                      <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px', fontWeight: 500 }}>Day of week</div>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
+                            const active = autoConfig.dayOfWeek === i
+                            return (
+                              <button
+                                key={d}
+                                onClick={() => patchAutoConfig({ dayOfWeek: i })}
+                                disabled={autoSaving}
+                                style={{ padding: '5px 11px', borderRadius: '20px', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', border: active ? '1.5px solid var(--color-text-primary)' : '1px solid var(--color-border)', background: active ? 'var(--color-text-primary)' : 'transparent', color: active ? 'var(--color-surface)' : 'var(--color-text-muted)', fontWeight: active ? 600 : 400, transition: 'all 140ms ease' }}
+                              >
+                                {d}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Hour */}
+                      <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-text-primary)' }}>Time</div>
+                        <select
+                          value={autoConfig.hour}
+                          onChange={e => patchAutoConfig({ hour: +e.target.value })}
+                          disabled={autoSaving}
+                          style={{ ...inputStyle, width: 'auto', padding: '6px 10px', fontSize: '13px' }}
+                        >
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={h}>{formatHour(h)}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Refresh prices toggle */}
+                      <div style={{ padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-text-primary)' }}>Refresh prices before snapshot</div>
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fetch latest prices before saving</div>
+                        </div>
+                        <button
+                          onClick={() => patchAutoConfig({ refreshPrices: !autoConfig.refreshPrices })}
+                          disabled={autoSaving}
+                          style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoConfig.refreshPrices ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
+                        >
+                          <div style={{ position: 'absolute', top: 2, left: autoConfig.refreshPrices ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
