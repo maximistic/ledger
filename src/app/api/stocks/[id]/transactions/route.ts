@@ -101,6 +101,101 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 }
 
+export async function PUT(request: Request, { params }: Ctx) {
+  try {
+    const { id } = await params
+    const url = new URL(request.url)
+    const transactionId = url.searchParams.get('transactionId')
+    if (!transactionId) return NextResponse.json({ error: 'transactionId is required' }, { status: 400 })
+
+    const stock = await prisma.stock.findUnique({ where: { id } })
+    if (!stock) return NextResponse.json({ error: 'Stock not found' }, { status: 404 })
+
+    const txn = await prisma.stockTransaction.findUnique({ where: { id: transactionId } })
+    if (!txn || txn.stockId !== id) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+
+    const body = await request.json() as { date?: unknown; type?: unknown; quantity?: unknown; price?: unknown }
+    const { date, type, quantity, price } = body
+
+    if (!date || typeof date !== 'string') return NextResponse.json({ error: 'date is required' }, { status: 400 })
+    if (type !== 'BUY' && type !== 'SELL') return NextResponse.json({ error: 'type must be BUY or SELL' }, { status: 400 })
+    if (typeof quantity !== 'number' || quantity <= 0) return NextResponse.json({ error: 'quantity must be > 0' }, { status: 400 })
+    if (typeof price !== 'number' || price <= 0) return NextResponse.json({ error: 'price must be > 0' }, { status: 400 })
+
+    const parsedDate = new Date(date)
+    if (isNaN(parsedDate.getTime())) return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+
+    await prisma.stockTransaction.update({
+      where: { id: transactionId },
+      data:  { date: parsedDate, type, quantity, price, amount: quantity * price },
+    })
+
+    const allTransactions = await prisma.stockTransaction.findMany({ where: { stockId: id } })
+    const metrics = calculateStockMetrics(allTransactions, stock.holdingsQuantity, stock.avgPrice)
+
+    if (metrics.quantity < 0) {
+      // Rollback to original values
+      await prisma.stockTransaction.update({
+        where: { id: transactionId },
+        data:  { date: txn.date, type: txn.type, quantity: txn.quantity, price: txn.price, amount: txn.amount },
+      })
+      return NextResponse.json({ error: 'Edit would result in negative quantity.' }, { status: 400 })
+    }
+
+    const safeQty       = isFinite(metrics.quantity)  ? metrics.quantity  : 0
+    const safeAvgPrice  = isFinite(metrics.avgPrice) && metrics.avgPrice > 0 ? metrics.avgPrice : stock.avgPrice
+    const safeCurrentPx = stock.currentPrice > 0 ? stock.currentPrice : safeAvgPrice
+    const investedValue = safeQty > 0 ? safeQty * safeAvgPrice : 0
+    const currentValue  = safeQty * safeCurrentPx
+
+    const updatedStock = await prisma.stock.update({
+      where: { id },
+      data:  { quantity: safeQty, avgPrice: safeAvgPrice, investedValue, currentValue },
+    })
+
+    const updatedTxn = await prisma.stockTransaction.findUnique({ where: { id: transactionId } })
+
+    return NextResponse.json({ transaction: updatedTxn, stock: updatedStock })
+  } catch (error) {
+    return NextResponse.json({ error: apiError(error) }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request, { params }: Ctx) {
+  try {
+    const { id } = await params
+    const url = new URL(request.url)
+    const transactionId = url.searchParams.get('transactionId')
+    if (!transactionId) return NextResponse.json({ error: 'transactionId is required' }, { status: 400 })
+
+    const stock = await prisma.stock.findUnique({ where: { id } })
+    if (!stock) return NextResponse.json({ error: 'Stock not found' }, { status: 404 })
+
+    const txn = await prisma.stockTransaction.findUnique({ where: { id: transactionId } })
+    if (!txn || txn.stockId !== id) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+
+    await prisma.stockTransaction.delete({ where: { id: transactionId } })
+
+    const allTransactions = await prisma.stockTransaction.findMany({ where: { stockId: id } })
+    const metrics = calculateStockMetrics(allTransactions, stock.holdingsQuantity, stock.avgPrice)
+
+    const safeQty       = isFinite(metrics.quantity)  ? metrics.quantity  : 0
+    const safeAvgPrice  = isFinite(metrics.avgPrice) && metrics.avgPrice > 0 ? metrics.avgPrice : stock.avgPrice
+    const safeCurrentPx = stock.currentPrice > 0 ? stock.currentPrice : safeAvgPrice
+    const investedValue = safeQty > 0 ? safeQty * safeAvgPrice : 0
+    const currentValue  = safeQty * safeCurrentPx
+
+    const updatedStock = await prisma.stock.update({
+      where: { id },
+      data:  { quantity: safeQty, avgPrice: safeAvgPrice, investedValue, currentValue },
+    })
+
+    return NextResponse.json({ success: true, stock: updatedStock })
+  } catch (error) {
+    return NextResponse.json({ error: apiError(error) }, { status: 500 })
+  }
+}
+
 function apiError(error: unknown): string {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') return 'A stock with this ticker already exists'

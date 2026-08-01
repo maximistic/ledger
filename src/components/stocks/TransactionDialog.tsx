@@ -55,6 +55,20 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
   const [txSubmitting, setTxSubmitting] = useState(false)
   const [txSubmitError, setTxSubmitError] = useState('')
 
+  // Per-row edit
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDate, setEditDate] = useState('')
+  const [editType, setEditType] = useState<'BUY' | 'SELL'>('BUY')
+  const [editQty, setEditQty] = useState('')
+  const [editPrice, setEditPrice] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  // Per-row delete
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -134,6 +148,64 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
       onClose()
     } catch {
       // noop
+    }
+  }
+
+  function startEdit(tx: Transaction) {
+    setEditingId(tx.id)
+    setEditDate(tx.date.slice(0, 10))
+    setEditType(tx.type as 'BUY' | 'SELL')
+    setEditQty(String(tx.quantity))
+    setEditPrice(String(tx.price))
+    setEditError('')
+    setDeletingId(null)
+  }
+
+  async function saveEdit(txId: string) {
+    const qty = parseFloat(editQty)
+    const price = parseFloat(editPrice)
+    if (!editDate || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
+      setEditError('All fields are required and must be > 0')
+      return
+    }
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch(`/api/stocks/${stock.id}/transactions?transactionId=${txId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: editDate, type: editType, quantity: qty, price }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to save')
+      setTransactions(prev => prev.map(t =>
+        t.id === txId ? { ...t, date: editDate, type: editType, quantity: qty, price, amount: qty * price } : t
+      ))
+      setEditingId(null)
+      onRefresh()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Error saving')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function deleteTx(txId: string) {
+    setDeleteLoadingId(txId)
+    setDeleteError('')
+    try {
+      const res = await fetch(`/api/stocks/${stock.id}/transactions?transactionId=${txId}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete')
+      setTransactions(prev => prev.filter(t => t.id !== txId))
+      setDeletingId(null)
+      onRefresh()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Error deleting')
+    } finally {
+      setDeleteLoadingId(null)
     }
   }
 
@@ -231,6 +303,81 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
               ) : transactions.map((tx, i) => {
                 const isLast = i === transactions.length - 1
                 const isBuy  = tx.type === 'BUY'
+
+                if (editingId === tx.id) {
+                  return (
+                    <div key={tx.id} style={{
+                      padding: '10px 0',
+                      borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
+                    }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* BUY/SELL toggle */}
+                        <div style={{ display: 'flex', background: 'var(--color-bg)', borderRadius: '6px', border: '0.5px solid var(--color-border)', overflow: 'hidden', flexShrink: 0 }}>
+                          {(['BUY', 'SELL'] as const).map(t => (
+                            <button key={t} onClick={() => setEditType(t)} style={{
+                              padding: '4px 10px', fontSize: '11px', fontWeight: 600,
+                              background: editType === t ? 'var(--color-text-primary)' : 'transparent',
+                              color: editType === t ? 'var(--color-surface)' : 'var(--color-text-muted)',
+                              fontFamily: 'inherit', cursor: 'pointer', border: 'none',
+                            }}>{t}</button>
+                          ))}
+                        </div>
+                        <input
+                          type="date" value={editDate} max={new Date().toISOString().slice(0, 10)}
+                          onChange={e => setEditDate(e.target.value)}
+                          style={{ ...fieldInput, width: '128px', padding: '4px 8px', fontSize: '12px', colorScheme: 'light dark' }}
+                        />
+                        <input
+                          type="number" min="0" step="any" value={editQty}
+                          onChange={e => setEditQty(e.target.value)}
+                          placeholder="Qty"
+                          style={{ ...fieldInput, width: '70px', padding: '4px 8px', fontSize: '12px' }}
+                        />
+                        <input
+                          type="number" min="0" step="any" value={editPrice}
+                          onChange={e => setEditPrice(e.target.value)}
+                          placeholder="Price"
+                          style={{ ...fieldInput, width: '84px', padding: '4px 8px', fontSize: '12px' }}
+                        />
+                        <button onClick={() => saveEdit(tx.id)} disabled={editSaving} style={{ ...primaryBtn, padding: '4px 12px', fontSize: '12px' }}>
+                          {editSaving && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                          {editSaving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button onClick={() => { setEditingId(null); setEditError('') }} style={{ ...ghostBtn, padding: '4px 10px', fontSize: '12px' }}>
+                          Cancel
+                        </button>
+                      </div>
+                      {editError && <div style={{ ...errText, marginTop: '4px' }}>{editError}</div>}
+                    </div>
+                  )
+                }
+
+                if (deletingId === tx.id) {
+                  return (
+                    <div key={tx.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 0',
+                      borderBottom: isLast ? 'none' : '0.5px solid var(--color-border-subtle)',
+                    }}>
+                      <span style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', flex: 1 }}>
+                        Delete this transaction?
+                      </span>
+                      {deleteError && <span style={{ fontSize: '11px', color: 'var(--color-loss)' }}>{deleteError}</span>}
+                      <button
+                        onClick={() => deleteTx(tx.id)}
+                        disabled={deleteLoadingId === tx.id}
+                        style={{ ...deleteBtn, display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 12px', fontSize: '12px' }}
+                      >
+                        {deleteLoadingId === tx.id && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                        Yes
+                      </button>
+                      <button onClick={() => { setDeletingId(null); setDeleteError('') }} style={{ ...ghostBtn, padding: '5px 10px', fontSize: '12px' }}>
+                        No
+                      </button>
+                    </div>
+                  )
+                }
+
                 return (
                   <div key={tx.id} style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
@@ -260,6 +407,22 @@ export default function TransactionDialog({ stock, onClose, onEdit, onDelete, on
                       <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
                         {tx.quantity} shares
                       </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => startEdit(tx)}
+                        title="Edit transaction"
+                        style={iconBtn}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => { setDeletingId(tx.id); setEditingId(null); setDeleteError('') }}
+                        title="Delete transaction"
+                        style={{ ...iconBtn, color: 'var(--color-loss)' }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
                 )
@@ -399,6 +562,11 @@ const primaryBtn: React.CSSProperties = {
   background: 'var(--color-text-primary)', color: 'var(--color-surface)',
   fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: '5px',
+}
+const iconBtn: React.CSSProperties = {
+  padding: '4px', borderRadius: '5px', border: 'none',
+  background: 'transparent', color: 'var(--color-text-muted)',
+  cursor: 'pointer', lineHeight: 0,
 }
 
 function SkeletonRows() {

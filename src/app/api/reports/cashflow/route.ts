@@ -36,10 +36,15 @@ export async function GET(request: NextRequest) {
     const monthValue = `${year}-${String(month).padStart(2, '0')}`
     const label      = monthLabel(year, month)
 
-    const [stockTxns, mfTxns, epfTxns, rds, fds, usTxns, customEntries] = await Promise.all([
+    const [stockBuyTxns, stockSellTxns, mfTxns, epfTxns, rds, fds, usTxns, customEntries] = await Promise.all([
       prisma.stockTransaction.findMany({
         where: { date: { gte: monthStart, lte: monthEnd }, type: 'BUY' },
-        include: { stock: { select: { name: true, ticker: true } } },
+        include: { stock: { select: { name: true, ticker: true, exchange: true } } },
+        orderBy: { date: 'asc' },
+      }),
+      prisma.stockTransaction.findMany({
+        where: { date: { gte: monthStart, lte: monthEnd }, type: 'SELL' },
+        include: { stock: { select: { name: true, ticker: true, exchange: true } } },
         orderBy: { date: 'asc' },
       }),
       prisma.mutualFundTransaction.findMany({
@@ -81,13 +86,24 @@ export async function GET(request: NextRequest) {
 
     const transactions: TxnEntry[] = []
 
-    for (const t of stockTxns) {
+    for (const t of stockBuyTxns) {
       transactions.push({
         date: t.date,
         name: t.stock.name,
-        subtitle: `${t.stock.ticker} · NSE`,
+        subtitle: `${t.stock.ticker} · ${t.stock.exchange}`,
         type: 'Stock',
         badge: 'STOCK',
+        amount: t.quantity * t.price,
+      })
+    }
+
+    for (const t of stockSellTxns) {
+      transactions.push({
+        date: t.date,
+        name: t.stock.name,
+        subtitle: `${t.stock.ticker} · ${t.stock.exchange} · sale`,
+        type: 'Stock Sale',
+        badge: 'SELL',
         amount: t.quantity * t.price,
       })
     }
@@ -171,14 +187,15 @@ export async function GET(request: NextRequest) {
     const customTotal  = customEntries.reduce((s, e) => s + e.purchasePrice, 0)
 
     const summary = {
-      total:  stockTxns.reduce((s, t) => s + t.quantity * t.price, 0)
+      total:  stockBuyTxns.reduce((s, t) => s + t.quantity * t.price, 0)
              + mfTxns.reduce((s, t) => s + t.amount, 0)
              + epfTxns.reduce((s, t) => s + t.employeeAmount + t.employerAmount, 0)
              + rdInstalled
              + fds.reduce((s, f) => s + f.principal, 0)
              + usTxns.reduce((s, t) => s + t.amountINR, 0)
              + customTotal,
-      stocks: stockTxns.reduce((s, t) => s + t.quantity * t.price, 0),
+      stocks: stockBuyTxns.reduce((s, t) => s + t.quantity * t.price, 0),
+      stockSales: stockSellTxns.reduce((s, t) => s + t.quantity * t.price, 0),
       mf:     mfTxns.reduce((s, t) => s + t.amount, 0),
       epf:    epfTxns.reduce((s, t) => s + t.employeeAmount + t.employerAmount, 0),
       rd:     rdInstalled,
