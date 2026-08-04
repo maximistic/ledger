@@ -12,6 +12,7 @@ export async function GET(req: Request) {
       monthStart: Date
       monthEnd:   Date
       label:      string
+      monthStr:   string
       isCurrentMonth: boolean
     }[] = []
 
