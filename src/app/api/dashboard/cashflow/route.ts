@@ -30,11 +30,12 @@ export async function GET(req: Request) {
       monthEnd.setHours(23, 59, 59, 999)
 
       const label = date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       const isCurrentMonth =
         monthStart.getMonth() === now.getMonth() &&
         monthStart.getFullYear() === now.getFullYear()
 
-      monthData.push({ monthStart, monthEnd, label, isCurrentMonth })
+      monthData.push({ monthStart, monthEnd, label, monthStr, isCurrentMonth })
     }
 
     const rangeStart = monthData[0].monthStart
@@ -75,7 +76,7 @@ export async function GET(req: Request) {
     ])
 
     // Aggregate per month in JS
-    const months = monthData.map(({ monthStart, monthEnd, label, isCurrentMonth }) => {
+    const months = monthData.map(({ monthStart, monthEnd, label, monthStr, isCurrentMonth }) => {
       const stockInvested = stockTxns
         .filter(t => t.date >= monthStart && t.date <= monthEnd)
         .reduce((s, t) => s + t.quantity * t.price, 0)
@@ -116,7 +117,7 @@ export async function GET(req: Request) {
         : 0
       console.log('[cashflow] month', label, 'invested', invested, 'returns', returns)
 
-      return { label, invested, returns, isCurrentMonth }
+      return { label, month: monthStr, invested, returns, isCurrentMonth }
     })
 
     const totalInvested         = months.reduce((s, m) => s + m.invested, 0)

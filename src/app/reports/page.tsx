@@ -28,6 +28,8 @@ function ReportsContent() {
   const [subOverrides,  setSubOverrides]  = useState<Partial<Record<ReportSection, string>>>({})
   const searchParams = useSearchParams()
 
+  const cashflowMonth = searchParams.get('month') ?? undefined
+
   useEffect(() => {
     const section = searchParams.get('section')
     if (section) setActiveSection(section as ReportSection)
@@ -119,7 +121,7 @@ function ReportsContent() {
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>{subtitle}</div>
           </div>
 
-          {activeSection === 'cashflow'   && <CashflowSection />}
+          {activeSection === 'cashflow'   && <CashflowSection initialMonth={cashflowMonth} />}
           {activeSection === 'milestones' && <MilestonesSection onLoaded={onMilestoneLoaded} />}
           {activeSection === 'snapshots'  && <SnapshotsSection  onLoaded={onSnapshotLoaded}  />}
           {activeSection === 'xirr'       && <XIRRSection />}

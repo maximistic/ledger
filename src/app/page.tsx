@@ -113,6 +113,7 @@ interface HoveredBar {
 
 interface CashflowMonth {
   label: string
+  month: string
   invested: number
   returns: number
   isCurrentMonth: boolean
@@ -803,7 +804,8 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={b.label}
-                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default' }}
+                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                          onClick={() => router.push(`/reports?section=cashflow&month=${b.month}`)}
                           onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, returnsAmt: b.returns ?? 0, barIndex: barIdx })}
                           onMouseLeave={() => setHoveredBar(null)}
                         >
