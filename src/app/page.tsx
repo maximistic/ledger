@@ -107,7 +107,7 @@ interface Milestone {
 interface HoveredBar {
   month: string
   investedAmt: number
-  returnsAmt: number
+  monthlyGain: number | null
   barIndex: number
 }
 
@@ -115,14 +115,14 @@ interface CashflowMonth {
   label: string
   month: string
   invested: number
-  returns: number
+  monthlyGain: number | null
   isCurrentMonth: boolean
 }
 
 interface CashflowData {
   months: CashflowMonth[]
   totalInvested: number
-  currentMonthInvested: number
+  sixMonthGain: number | null
 }
 
 // ── Static data ───────────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ export default function DashboardPage() {
           fetch('/api/dashboard/performers'),
           fetch('/api/dashboard/upcoming'),
           fetch('/api/milestones'),
-          fetch('/api/dashboard/cashflow?months=6'),
+          fetch('/api/reports/cashflow?months=6'),
           fetch('/api/reports/xirr'),
         ])
         if (summaryRes.ok)    setSummary(await summaryRes.json())
@@ -806,7 +806,7 @@ export default function DashboardPage() {
                           key={b.label}
                           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
                           onClick={() => router.push(`/reports?section=cashflow&month=${b.month}`)}
-                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, returnsAmt: b.returns ?? 0, barIndex: barIdx })}
+                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, monthlyGain: b.monthlyGain, barIndex: barIdx })}
                           onMouseLeave={() => setHoveredBar(null)}
                         >
                           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
@@ -823,6 +823,11 @@ export default function DashboardPage() {
                       <div style={{ position: 'absolute', bottom: '108px', left: `${leftPct}%`, transform: 'translateX(-50%)', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '7px', padding: '7px 11px', fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10 }}>
                         <div style={{ fontWeight: 600, marginBottom: '3px' }}>{hoveredBar.month}</div>
                         <div>Invested: {formatINR(hoveredBar.investedAmt)}</div>
+                        {hoveredBar.monthlyGain != null && (
+                          <div style={{ color: hoveredBar.monthlyGain >= 0 ? '#4ADE80' : '#F87171', marginTop: '2px' }}>
+                            {hoveredBar.monthlyGain >= 0 ? 'Gain' : 'Loss'}: {hoveredBar.monthlyGain >= 0 ? '+' : '-'}{formatINR(Math.abs(hoveredBar.monthlyGain))}
+                          </div>
+                        )}
                       </div>
                     )
                   })()}
@@ -846,26 +851,27 @@ export default function DashboardPage() {
                 <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
                   <div>
                     <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.currentMonthInvested)}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatINR(months.find(m => m.isCurrentMonth)?.invested ?? 0)}
+                    </div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>invested</div>
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>Returns</div>
-                    {(() => {
-                      const totalReturns = months.reduce((s, m) => s + (m.returns ?? 0), 0)
-                      return totalReturns > 0 ? (
-                        <>
-                          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-gain)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>+{formatINR(totalReturns)}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>over 6 months</div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-muted)', lineHeight: 1.1 }}>—</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>calculating...</div>
-                        </>
-                      )
-                    })()}
+                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Return</div>
+                    {cashflow.sixMonthGain != null ? (
+                      <>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: cashflow.sixMonthGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
+                          {cashflow.sixMonthGain >= 0 ? '+' : '-'}{formatINR(Math.abs(cashflow.sixMonthGain))}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>over 6 months</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-muted)', lineHeight: 1.1 }}>—</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>no snapshots yet</div>
+                      </>
+                    )}
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
                   <div>

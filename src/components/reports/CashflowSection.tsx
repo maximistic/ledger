@@ -119,13 +119,21 @@ export default function CashflowSection({ initialMonth }: Props) {
   const txns   = data?.transactions ?? []
   const months = data?.availableMonths ?? []
 
-  // Group by assetClass preserving order
+  const CANONICAL = ['Stocks', 'Mutual Funds', 'EPF', 'FD', 'RD', 'International']
+
+  // Group by assetClass
   const grouped = txns.reduce<Record<string, CashflowTxn[]>>((acc, txn) => {
     if (!acc[txn.assetClass]) acc[txn.assetClass] = []
     acc[txn.assetClass].push(txn)
     return acc
   }, {})
-  const assetClasses = Object.keys(grouped)
+
+  // Order: canonical first, then custom classes alphabetically
+  const allClasses = Object.keys(grouped)
+  const assetClasses = [
+    ...CANONICAL.filter(c => grouped[c]),
+    ...allClasses.filter(c => !CANONICAL.includes(c)).sort(),
+  ]
 
   return (
     <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden', opacity: loading ? 0.7 : 1, transition: 'opacity 150ms ease' }}>
