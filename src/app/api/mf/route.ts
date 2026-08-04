@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       name?: unknown; amfiCode?: unknown; isin?: unknown; folioNumber?: unknown
       platform?: unknown; fundHouse?: unknown; fundCategory?: unknown
       units?: unknown; avgNav?: unknown; investedValue?: unknown
-      firstInvestmentDate?: unknown; source?: unknown
+      firstInvestmentDate?: unknown; purchaseDate?: unknown; source?: unknown
     }
 
     console.log('[POST /api/mf] body:', JSON.stringify(body))
@@ -94,6 +94,24 @@ export async function POST(request: Request) {
     })
 
     console.log('[POST /api/mf] created fund:', fund.id)
+
+    // Opening LUMPSUM — makes transactions the single source of truth for investedValue/units
+    let txDate: Date = firstDate ?? new Date()
+    if (typeof body.purchaseDate === 'string' && body.purchaseDate) {
+      const d = new Date(body.purchaseDate)
+      if (!isNaN(d.getTime())) txDate = d
+    }
+    await prisma.mutualFundTransaction.create({
+      data: {
+        fundId:      fund.id,
+        date:        txDate,
+        type:        'LUMPSUM',
+        units,
+        nav:         avgNav,
+        amount:      investedValue,
+        autoCreated: true,
+      },
+    })
 
     if (fund.amfiCode) {
       setImmediate(() => {

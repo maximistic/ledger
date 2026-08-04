@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-const BUY_TYPES  = new Set(['SIP', 'LUMPSUM', 'SWITCH_IN', 'DIVIDEND'])
-const SELL_TYPES = new Set(['REDEMPTION', 'SWITCH_OUT'])
+const BUY_TYPES   = new Set(['SIP', 'LUMPSUM', 'SWITCH_IN', 'DIVIDEND', 'CORRECTION'])
+const SELL_TYPES  = new Set(['REDEMPTION', 'SWITCH_OUT'])
 const VALID_TYPES = new Set([...BUY_TYPES, ...SELL_TYPES])
 
 function recalcFund(txns: Array<{ type: string; units: number; nav: number; amount: number }>) {
@@ -43,6 +43,26 @@ export async function GET(_req: Request, { params }: Ctx) {
 export async function POST(request: Request, { params }: Ctx) {
   try {
     const { id } = await params
+
+    // Migration guard: back-fill opening LUMPSUM for funds created before transaction-sourcing.
+    // The `transactions: { none: {} }` filter makes this a no-op once a fund has any transaction.
+    const unmigratedFunds = await prisma.mutualFund.findMany({
+      where: { investedValue: { gt: 0 }, transactions: { none: {} } },
+      select: { id: true, units: true, avgNav: true, investedValue: true, firstInvestmentDate: true },
+    })
+    if (unmigratedFunds.length > 0) {
+      await prisma.mutualFundTransaction.createMany({
+        data: unmigratedFunds.map(f => ({
+          fundId:      f.id,
+          date:        f.firstInvestmentDate ?? new Date(),
+          type:        'LUMPSUM',
+          units:       f.units,
+          nav:         f.avgNav > 0 ? f.avgNav : 1,
+          amount:      f.investedValue,
+          autoCreated: true,
+        })),
+      })
+    }
 
     const fund = await prisma.mutualFund.findUnique({ where: { id } })
     if (!fund) return NextResponse.json({ error: 'Fund not found' }, { status: 404 })

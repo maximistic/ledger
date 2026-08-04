@@ -75,7 +75,7 @@ model MutualFundTransaction {
   fundId      String
   fund        MutualFund @relation(fields: [fundId], references: [id], onDelete: Cascade)
   date        DateTime
-  type        String     // SIP | LUMPSUM | REDEMPTION | SWITCH_IN | SWITCH_OUT | DIVIDEND
+  type        String     // SIP | LUMPSUM | REDEMPTION | SWITCH_IN | SWITCH_OUT | DIVIDEND | CORRECTION
   units       Float
   nav         Float
   amount      Float
