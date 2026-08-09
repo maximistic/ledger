@@ -375,11 +375,19 @@ export default function DashboardPage() {
     lastPt        = pts[pts.length - 1]
     fillD         = pathD + ` L${lastPt.x.toFixed(1)},160 L${firstPt.x.toFixed(1)},160 Z`
 
-    const step = Math.max(1, Math.floor(chartData.length / 8))
-    for (let i = 0; i < chartData.length; i += step) {
-      monthLabels.push({ label: getLabel(new Date(chartData[i].date + 'T00:00:00'), activeTab), x: xOf(i) })
+    const intervalDays: Record<TabKey, number> = { '1M': 3, '6M': 21, '1Y': 60, '5Y': 365 }
+    const intervalMs = intervalDays[activeTab] * 24 * 60 * 60 * 1000
+    let t = minTime
+    while (t <= maxTime) {
+      const x = timeRange === 0 ? 450 : ((t - minTime) / timeRange) * 900
+      monthLabels.push({ label: getLabel(new Date(t), activeTab), x })
+      t += intervalMs
     }
-    monthLabels = monthLabels.slice(0, 8)
+    const lastX = ((maxTime - minTime) / timeRange) * 900
+    const lastLabel = getLabel(new Date(maxTime), activeTab)
+    if (monthLabels.length === 0 || lastX - monthLabels[monthLabels.length - 1].x > (900 / 10)) {
+      monthLabels.push({ label: lastLabel, x: lastX })
+    }
   }
 
   // Pie segments (r=70, cx=cy=80, SVG 160×160)
