@@ -238,6 +238,7 @@ export default function DashboardPage() {
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
   const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; investedValue: number; date: Date; pct: number } | null>(null)
+  const [showInvested,   setShowInvested]   = useState(true)
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
   const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
@@ -526,23 +527,41 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', background: 'var(--color-bg)', borderRadius: '6px', padding: '3px' }}>
-            {(['1M', '6M', '1Y', '5Y'] as TabKey[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                style={{
-                  padding: '4px 11px', borderRadius: '4px', fontSize: '11.5px',
-                  fontFamily: 'inherit', border: 'none', cursor: 'pointer',
-                  color: activeTab === t ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                  background: activeTab === t ? 'var(--color-surface)' : 'transparent',
-                  boxShadow: activeTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                  transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
-                }}
-              >
-                {t}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              onClick={() => setShowInvested(prev => !prev)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                fontSize: '11px', padding: '3px 8px', borderRadius: '20px',
+                border: '0.5px solid var(--color-border)',
+                background: 'var(--color-surface-raised)',
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer', userSelect: 'none',
+                opacity: showInvested ? 1 : 0.45,
+              }}
+            >
+              <span style={{ display: 'inline-block', width: '14px', height: '0px', borderTop: '1.5px dashed var(--color-text-muted)' }} />
+              Invested{' '}
+              <span style={{ color: 'var(--color-text-muted)' }}>{showInvested ? '· on' : '· off'}</span>
+            </div>
+            <div style={{ display: 'flex', background: 'var(--color-bg)', borderRadius: '6px', padding: '3px' }}>
+              {(['1M', '6M', '1Y', '5Y'] as TabKey[]).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setActiveTab(t)}
+                  style={{
+                    padding: '4px 11px', borderRadius: '4px', fontSize: '11.5px',
+                    fontFamily: 'inherit', border: 'none', cursor: 'pointer',
+                    color: activeTab === t ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    background: activeTab === t ? 'var(--color-surface)' : 'transparent',
+                    boxShadow: activeTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                    transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -580,9 +599,11 @@ export default function DashboardPage() {
                 transition: 'left 60ms ease',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{formatINR(hoveredPoint.value)}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                  Invested {formatINR(hoveredPoint.investedValue)}
-                </div>
+                {showInvested && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    Invested {formatINR(hoveredPoint.investedValue)}
+                  </div>
+                )}
                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>
                   {hoveredPoint.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
                 </div>
@@ -596,7 +617,7 @@ export default function DashboardPage() {
                 </linearGradient>
               </defs>
               <path d={fillD} fill="var(--chart-line)" fillOpacity={0.06} stroke="none" />
-              <path d={investedPathD} fill="none" stroke="var(--color-text-muted)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.5} />
+              {showInvested && <path d={investedPathD} fill="none" stroke="var(--color-text-muted)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.5} />}
               <path d={pathD} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} strokeLinecap="round" />
               <circle cx={lastPt.x} cy={lastPt.y} r={3.5} fill="var(--chart-line)" />
               <circle cx={lastPt.x} cy={lastPt.y} r={7}   fill="var(--chart-line)" fillOpacity={0.1} />
