@@ -336,7 +336,7 @@ export default function DashboardPage() {
   let fillD        = ''
   let investedPathD = ''
   let lastPt       = { x: 900, y: 5 }
-  let monthLabels: string[] = []
+  let monthLabels: { label: string; x: number }[] = []
   let chartTimes: number[] = []
   let chartMinTime = 0
   let chartTimeRange = 1
@@ -377,7 +377,7 @@ export default function DashboardPage() {
 
     const step = Math.max(1, Math.floor(chartData.length / 8))
     for (let i = 0; i < chartData.length; i += step) {
-      monthLabels.push(getLabel(new Date(chartData[i].date + 'T00:00:00'), activeTab))
+      monthLabels.push({ label: getLabel(new Date(chartData[i].date + 'T00:00:00'), activeTab), x: xOf(i) })
     }
     monthLabels = monthLabels.slice(0, 8)
   }
@@ -656,8 +656,22 @@ export default function DashboardPage() {
                 onMouseLeave={() => setHoveredPoint(null)}
               />
             </svg>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#C8C4B8', marginTop: '6px' }}>
-              {monthLabels.map((m, i) => <span key={i}>{m}</span>)}
+            <div style={{ position: 'relative', height: '16px', marginTop: '6px' }}>
+              {monthLabels.map((m, i) => (
+                <span
+                  key={i}
+                  style={{
+                    position: 'absolute',
+                    left: `${(m.x / 900) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    fontSize: '10px',
+                    color: '#C8C4B8',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {m.label}
+                </span>
+              ))}
             </div>
           </div>
         )}
