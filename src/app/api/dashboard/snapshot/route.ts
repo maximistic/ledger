@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const chartData = snapshots.map(s => ({
       date:          s.date.toISOString().split('T')[0],
       totalNetWorth: s.totalNetWorth,
+      investedValue: s.investedValue,
     }))
 
     return NextResponse.json({ period, changeAmt, changePct, chartData })

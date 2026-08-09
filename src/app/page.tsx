@@ -56,6 +56,7 @@ interface DashboardSummary {
 interface SnapshotPoint {
   date: string
   totalNetWorth: number
+  investedValue: number
 }
 
 interface SnapshotData {
@@ -236,7 +237,7 @@ export default function DashboardPage() {
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
   const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
-  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; date: Date; pct: number } | null>(null)
+  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; investedValue: number; date: Date; pct: number } | null>(null)
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
   const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
   const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
@@ -330,32 +331,52 @@ export default function DashboardPage() {
   const hasChart   = chartData.length > 0
 
   // SVG chart paths
-  let pathD       = ''
-  let fillD       = ''
-  let lastPt      = { x: 900, y: 5 }
+  let pathD        = ''
+  let fillD        = ''
+  let investedPathD = ''
+  let lastPt       = { x: 900, y: 5 }
   let monthLabels: string[] = []
+  let chartTimes: number[] = []
+  let chartMinTime = 0
+  let chartTimeRange = 1
 
   if (hasChart) {
-    const values = chartData.map(s => s.totalNetWorth)
-    const minVal = Math.min(...values)
-    const maxVal = Math.max(...values)
+    const times     = chartData.map(s => new Date(s.date + 'T00:00:00').getTime())
+    const minTime   = times[0]
+    const maxTime   = times[times.length - 1]
+    const timeRange = maxTime - minTime || 1
+    chartTimes    = times
+    chartMinTime  = minTime
+    chartTimeRange = timeRange
+
+    const allValues = [...chartData.map(s => s.totalNetWorth), ...chartData.map(s => s.investedValue)]
+    const minVal = Math.min(...allValues)
+    const maxVal = Math.max(...allValues)
     const range  = maxVal - minVal || 1
-    const pts    = chartData.map((s, i) => ({
-      x: chartData.length === 1 ? 450 : (i / (chartData.length - 1)) * 900,
-      y: 150 - ((s.totalNetWorth - minVal) / range) * 130,
-    }))
-    pathD  = pts.reduce((d, pt, i) => {
-      if (i === 0) return `M${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
-      const prev = pts[i - 1]
-      const cpx  = ((prev.x + pt.x) / 2).toFixed(1)
-      return d + ` C${cpx},${prev.y.toFixed(1)} ${cpx},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
-    }, '')
-    fillD  = pathD + ' L900,160 L0,160 Z'
-    lastPt = pts[pts.length - 1]
+
+    const xOf = (i: number) => chartData.length === 1 ? 450 : ((times[i] - minTime) / timeRange) * 900
+    const yOf = (v: number) => 150 - ((v - minVal) / range) * 130
+
+    const pts = chartData.map((s, i) => ({ x: xOf(i), y: yOf(s.totalNetWorth) }))
+    const ipts = chartData.map((s, i) => ({ x: xOf(i), y: yOf(s.investedValue) }))
+
+    const buildPath = (points: { x: number; y: number }[]) =>
+      points.reduce((d, pt, i) => {
+        if (i === 0) return `M${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
+        const prev = points[i - 1]
+        const cpx  = ((prev.x + pt.x) / 2).toFixed(1)
+        return d + ` C${cpx},${prev.y.toFixed(1)} ${cpx},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
+      }, '')
+
+    pathD        = buildPath(pts)
+    investedPathD = buildPath(ipts)
+    const firstPt = pts[0]
+    lastPt        = pts[pts.length - 1]
+    fillD         = pathD + ` L${lastPt.x.toFixed(1)},160 L${firstPt.x.toFixed(1)},160 Z`
 
     const step = Math.max(1, Math.floor(chartData.length / 8))
     for (let i = 0; i < chartData.length; i += step) {
-      monthLabels.push(getLabel(new Date(chartData[i].date), activeTab))
+      monthLabels.push(getLabel(new Date(chartData[i].date + 'T00:00:00'), activeTab))
     }
     monthLabels = monthLabels.slice(0, 8)
   }
@@ -545,7 +566,7 @@ export default function DashboardPage() {
             {hoveredPoint && (
               <div style={{
                 position: 'absolute', top: 8,
-                left: `${hoveredPoint.pct * 100}%`,
+                left: `${(hoveredPoint.x / 900) * 100}%`,
                 transform: hoveredPoint.pct < 0.2
                   ? 'translateX(8px)'
                   : hoveredPoint.pct > 0.8
@@ -559,6 +580,9 @@ export default function DashboardPage() {
                 transition: 'left 60ms ease',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{formatINR(hoveredPoint.value)}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  Invested {formatINR(hoveredPoint.investedValue)}
+                </div>
                 <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>
                   {hoveredPoint.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
                 </div>
@@ -571,7 +595,8 @@ export default function DashboardPage() {
                   <stop offset="100%" stopColor="var(--chart-line)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <path d={fillD} fill="url(#cg)" />
+              <path d={fillD} fill="var(--chart-line)" fillOpacity={0.06} stroke="none" />
+              <path d={investedPathD} fill="none" stroke="var(--color-text-muted)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.5} />
               <path d={pathD} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} strokeLinecap="round" />
               <circle cx={lastPt.x} cy={lastPt.y} r={3.5} fill="var(--chart-line)" />
               <circle cx={lastPt.x} cy={lastPt.y} r={7}   fill="var(--chart-line)" fillOpacity={0.1} />
@@ -588,18 +613,22 @@ export default function DashboardPage() {
                   const rect = svg.getBoundingClientRect()
                   const pct = (e.clientX - rect.left) / rect.width
                   const data = snapshots.chartData
-                  const idx = Math.round(pct * (data.length - 1))
-                  const snap = data[Math.max(0, Math.min(idx, data.length - 1))]
+                  const cursorTime = chartMinTime + pct * chartTimeRange
+                  const idx = chartTimes.reduce((best, t, i) =>
+                    Math.abs(t - cursorTime) < Math.abs(chartTimes[best] - cursorTime) ? i : best, 0)
+                  const snap = data[idx]
                   if (!snap) return
-                  const values = data.map(s => s.totalNetWorth)
-                  const min = Math.min(...values)
-                  const max = Math.max(...values)
+                  const allVals = [...data.map(s => s.totalNetWorth), ...data.map(s => s.investedValue)]
+                  const min = Math.min(...allVals)
+                  const max = Math.max(...allVals)
                   const range = max - min || 1
+                  const xPos = data.length === 1 ? 450 : ((chartTimes[idx] - chartMinTime) / chartTimeRange) * 900
                   setHoveredPoint({
-                    x: (idx / (data.length - 1)) * 900,
+                    x: xPos,
                     y: 150 - ((snap.totalNetWorth - min) / range) * 130,
                     value: snap.totalNetWorth,
-                    date: new Date(snap.date),
+                    investedValue: snap.investedValue,
+                    date: new Date(snap.date + 'T00:00:00'),
                     pct,
                   })
                 }}
