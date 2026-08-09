@@ -182,11 +182,11 @@ export default function SettingsPage() {
 
       if (rdRes.ok) {
         const { rds } = await rdRes.json() as {
-          rds: Array<{ id: string; name: string; monthlyAmount: number; dayOfMonth: number; maturityDate: string }>
+          rds: Array<{ id: string; name: string; monthlyAmount: number; dayOfMonth: number; maturityDate: string; status: string }>
         }
         const today = new Date()
         for (const rd of rds) {
-          if (new Date(rd.maturityDate) > today) {
+          if (rd.status === 'ACTIVE' && new Date(rd.maturityDate) > today) {
             const sfx = ordinalSuffix(rd.dayOfMonth)
             arr.push({
               id: rd.id, type: 'RD', name: rd.name,

@@ -74,19 +74,18 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
     }
   }
 
-  async function handleToggleStatus() {
+  async function handlePause() {
     if (togglingStatus) return
-    const newStatus = rd.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED'
     setTogglingStatus(true); setStatusError('')
     try {
       const res = await fetch(`/api/rd/${rd.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: 'PAUSED' }),
       })
       if (!res.ok) {
         const data = await res.json() as { error?: string }
-        setStatusError(data.error ?? 'Failed to update status')
+        setStatusError(data.error ?? 'Failed to pause RD')
         return
       }
       const data = await res.json() as { rd?: RDAccount }
@@ -346,14 +345,16 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
         <div style={{ padding: '14px 20px', borderTop: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={onEdit} style={ghostBtnStyle}>Edit</button>
-            <button
-              onClick={handleToggleStatus}
-              disabled={togglingStatus}
-              style={{ padding: '7px 14px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: togglingStatus ? 'var(--color-text-muted)' : 'var(--color-text-muted)', fontSize: '12.5px', fontFamily: 'inherit', cursor: togglingStatus ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-            >
-              {togglingStatus && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-              {togglingStatus ? (rd.status === 'PAUSED' ? 'Resuming…' : 'Pausing…') : (rd.status === 'PAUSED' ? 'Resume RD' : 'Pause RD')}
-            </button>
+            {rd.status === 'ACTIVE' && (
+              <button
+                onClick={handlePause}
+                disabled={togglingStatus}
+                style={{ padding: '7px 14px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: togglingStatus ? 'var(--color-text-muted)' : 'var(--color-text-muted)', fontSize: '12.5px', fontFamily: 'inherit', cursor: togglingStatus ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              >
+                {togglingStatus && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+                {togglingStatus ? 'Pausing…' : 'Pause RD'}
+              </button>
+            )}
             <button
               onClick={handleDelete}
               disabled={deleting}

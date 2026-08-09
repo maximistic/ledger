@@ -26,8 +26,8 @@ export async function GET(_req: Request, { params }: Ctx) {
     let currentValue: number, totalInvested: number, interestEarned: number
     if (rd.status === 'PAUSED' && rd.frozenCorpus != null && rd.pausedAt != null) {
       currentValue   = Math.round(calculateFrozenCorpusValue(rd.frozenCorpus, rd.interestRate, rd.pausedAt) * 100) / 100
-      totalInvested  = rd.frozenCorpus
-      interestEarned = Math.round((currentValue - rd.frozenCorpus) * 100) / 100
+      totalInvested  = rd.totalInvested   // raw principal, frozen at pause
+      interestEarned = Math.round((currentValue - rd.totalInvested) * 100) / 100
     } else {
       ;({ currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
         monthlyAmount: rd.monthlyAmount,
@@ -70,37 +70,15 @@ export async function PUT(request: Request, { params }: Ctx) {
         topUps:        existing.topUps,
         asOf:          pausedAt,
       })
-      const frozenCorpus   = snapshot.totalInvested
-      const currentValue   = Math.round(calculateFrozenCorpusValue(frozenCorpus, existing.interestRate, pausedAt) * 100) / 100
-      const interestEarned = Math.round((currentValue - frozenCorpus) * 100) / 100
+      // frozenCorpus = full corpus at pause time (principal + all pre-pause interest)
+      // so post-pause compounding starts from the correct base
+      const frozenCorpus    = snapshot.currentValue
+      const frozenInvested  = snapshot.totalInvested
+      const currentValue    = frozenCorpus  // at t=0 since pause, corpus hasn't grown yet
+      const interestEarned  = Math.round((currentValue - frozenInvested) * 100) / 100
       const rd = await prisma.rDAccount.update({
         where: { id },
-        data:  { status: 'PAUSED', pausedAt, frozenCorpus, currentValue, totalInvested: frozenCorpus, interestEarned },
-        include: { topUps: true },
-      })
-      return NextResponse.json({ rd })
-    }
-
-    // ── Resume transition ─────────────────────────────────────────────────────
-    if (body.status === 'ACTIVE' && existing.status === 'PAUSED') {
-      const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
-        monthlyAmount: existing.monthlyAmount,
-        annualRate:    existing.interestRate,
-        startDate:     existing.startDate,
-        dayOfMonth:    existing.dayOfMonth,
-        topUps:        existing.topUps,
-      })
-      const maturityValue = calculateRDMaturityValue({
-        monthlyAmount: existing.monthlyAmount,
-        annualRate:    existing.interestRate,
-        startDate:     existing.startDate,
-        dayOfMonth:    existing.dayOfMonth,
-        topUps:        existing.topUps,
-        maturityDate:  existing.maturityDate,
-      })
-      const rd = await prisma.rDAccount.update({
-        where: { id },
-        data:  { status: 'ACTIVE', pausedAt: null, frozenCorpus: null, currentValue, totalInvested, maturityValue, interestEarned },
+        data:  { status: 'PAUSED', pausedAt, frozenCorpus, currentValue, totalInvested: frozenInvested, interestEarned },
         include: { topUps: true },
       })
       return NextResponse.json({ rd })

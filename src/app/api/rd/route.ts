@@ -22,8 +22,8 @@ export async function GET() {
     const enriched = rds.map(rd => {
       if (rd.status === 'PAUSED' && rd.frozenCorpus != null && rd.pausedAt != null) {
         const currentValue   = Math.round(calculateFrozenCorpusValue(rd.frozenCorpus, rd.interestRate, rd.pausedAt) * 100) / 100
-        const totalInvested  = rd.frozenCorpus
-        const interestEarned = Math.round((currentValue - rd.frozenCorpus) * 100) / 100
+        const totalInvested  = rd.totalInvested   // raw principal, frozen at pause
+        const interestEarned = Math.round((currentValue - rd.totalInvested) * 100) / 100
         return { ...rd, currentValue, totalInvested, interestEarned }
       }
       const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
