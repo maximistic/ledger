@@ -165,6 +165,17 @@ export function getDaysToMaturity(maturityDate: Date): number {
   return Math.max(0, Math.ceil(diff / (24 * 60 * 60 * 1000)))
 }
 
+export function calculateFrozenCorpusValue(
+  frozenCorpus: number,
+  annualRate: number,
+  frozenAt: Date,
+  asOf: Date = new Date()
+): number {
+  if (asOf <= frozenAt) return frozenCorpus
+  const years = (asOf.getTime() - frozenAt.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+  return frozenCorpus * Math.pow(1 + annualRate / 100 / 4, 4 * years)
+}
+
 export function getMaturityStatus(maturityDate: Date): 'MATURED' | 'CRITICAL' | 'WARNING' | 'OK' {
   const today = new Date()
   today.setHours(0, 0, 0, 0)

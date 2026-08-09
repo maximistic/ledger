@@ -122,7 +122,9 @@ async function handleSummaryMode(monthCount: number) {
       + fds.filter(fd => fd.startDate >= monthStart && fd.startDate <= monthEnd).reduce((s, fd) => s + fd.principal, 0)
       + rds.filter(rd => rd.startDate <= monthEnd && rd.maturityDate >= monthStart).reduce((s, rd) => {
           const installDate = new Date(year, month - 1, rd.dayOfMonth)
-          return installDate >= monthStart && installDate <= monthEnd ? s + rd.monthlyAmount : s
+          if (!(installDate >= monthStart && installDate <= monthEnd)) return s
+          const shouldCount = rd.status === 'ACTIVE' || (rd.status === 'PAUSED' && rd.pausedAt != null && installDate < rd.pausedAt)
+          return shouldCount ? s + rd.monthlyAmount : s
         }, 0)
       + usTxns.filter(t => t.date >= monthStart && t.date <= monthEnd).reduce((s, t) => s + t.amountINR, 0)
       + customEntries.filter(e => e.purchaseDate && e.purchaseDate >= monthStart && e.purchaseDate <= monthEnd).reduce((s, e) => s + e.purchasePrice, 0)
@@ -282,7 +284,10 @@ async function handleDetailMode(param: string | null) {
   for (const rd of rdAccounts) {
     const installDate = new Date(year, month - 1, rd.dayOfMonth)
     if (installDate >= monthStart && installDate <= monthEnd) {
-      push({ id: `rd-${rd.id}-${monthValue}`, date: installDate, assetClass: 'RD', name: rd.name, amount: rd.monthlyAmount, direction: 'out' })
+      const shouldCount = rd.status === 'ACTIVE' || (rd.status === 'PAUSED' && rd.pausedAt != null && installDate < rd.pausedAt)
+      if (shouldCount) {
+        push({ id: `rd-${rd.id}-${monthValue}`, date: installDate, assetClass: 'RD', name: rd.name, amount: rd.monthlyAmount, direction: 'out' })
+      }
     }
   }
 

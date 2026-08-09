@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateRDCurrentValue, calculateRDMaturityValue } from '@/lib/fdCalculator'
+import { calculateRDCurrentValue, calculateRDMaturityValue, calculateFrozenCorpusValue } from '@/lib/fdCalculator'
 
 function tenureMonthsBetween(start: Date, end: Date): number {
   return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
@@ -20,6 +20,12 @@ export async function GET() {
     })
 
     const enriched = rds.map(rd => {
+      if (rd.status === 'PAUSED' && rd.frozenCorpus != null && rd.pausedAt != null) {
+        const currentValue   = Math.round(calculateFrozenCorpusValue(rd.frozenCorpus, rd.interestRate, rd.pausedAt) * 100) / 100
+        const totalInvested  = rd.frozenCorpus
+        const interestEarned = Math.round((currentValue - rd.frozenCorpus) * 100) / 100
+        return { ...rd, currentValue, totalInvested, interestEarned }
+      }
       const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
         monthlyAmount: rd.monthlyAmount,
         annualRate:    rd.interestRate,

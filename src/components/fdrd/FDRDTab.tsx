@@ -59,6 +59,9 @@ export interface RDAccount {
   isAutoRenew: boolean
   notes: string | null
   lastProcessedDate: string | null
+  status: 'ACTIVE' | 'PAUSED' | 'MATURED'
+  pausedAt?: string | null
+  frozenCorpus?: number | null
   createdAt: string
   updatedAt: string
   topUps: RDTopUp[]
@@ -334,8 +337,15 @@ function RDRow({ rd, isLast, onClick }: { rd: RDAccount; isLast: boolean; onClic
           <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {rd.name}
           </div>
-          <div style={{ display: 'inline-block', marginTop: '3px', fontSize: '9.5px', color: 'var(--color-text-muted)', background: 'var(--color-surface-raised)', padding: '1px 6px', borderRadius: '3px' }}>
-            {rd.platform}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px' }}>
+            <div style={{ display: 'inline-block', fontSize: '9.5px', color: 'var(--color-text-muted)', background: 'var(--color-surface-raised)', padding: '1px 6px', borderRadius: '3px' }}>
+              {rd.platform}
+            </div>
+            {rd.status === 'PAUSED' && (
+              <div style={{ display: 'inline-block', fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-surface-raised)', padding: '2px 7px', borderRadius: '10px', border: '0.5px solid var(--color-border)' }}>
+                PAUSED
+              </div>
+            )}
           </div>
         </div>
       </div>

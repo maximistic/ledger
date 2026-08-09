@@ -47,7 +47,7 @@ export async function GET() {
       prisma.rDAccount.findMany({ where: { maturityDate: { gte: now, lte: cutoff } } }),
       prisma.ePFAccount.findFirst({ where: { trackingStatus: 'ACTIVE' } }),
       // RDs still active beyond 90-day window — track upcoming installments
-      prisma.rDAccount.findMany({ where: { maturityDate: { gt: cutoff } } }),
+      prisma.rDAccount.findMany({ where: { maturityDate: { gt: cutoff }, status: 'ACTIVE' } }),
       prisma.sipConfig.findMany({
         where:   { status: 'ACTIVE' },
         include: { fund: { select: { name: true } } },

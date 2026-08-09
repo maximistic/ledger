@@ -180,6 +180,9 @@ model RDAccount {
   isAutoRenew       Boolean   @default(false)
   notes             String?
   lastProcessedDate DateTime?
+  status            String    @default("ACTIVE")
+  pausedAt          DateTime?
+  frozenCorpus      Float?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   topUps            RDTopUp[]

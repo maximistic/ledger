@@ -85,7 +85,7 @@ async function processRDs(): Promise<{ processed: number; errors: string[] }> {
   const errors: string[] = []
 
   const rds = await prisma.rDAccount.findMany({
-    where:   { maturityDate: { gt: today } },
+    where:   { maturityDate: { gt: today }, status: { not: 'PAUSED' } },
     include: { topUps: true },
   })
 

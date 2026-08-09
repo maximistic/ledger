@@ -26,6 +26,9 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
   const [deleting, setDeleting]  = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
+  const [togglingStatus, setTogglingStatus] = useState(false)
+  const [statusError,    setStatusError]    = useState('')
+
   // Top-up add form state
   const [showAddTopUp, setShowAddTopUp]     = useState(false)
   const [topUpAmount,  setTopUpAmount]       = useState('')
@@ -68,6 +71,31 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
       setDeleteError('Something went wrong. Please try again.')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleToggleStatus() {
+    if (togglingStatus) return
+    const newStatus = rd.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED'
+    setTogglingStatus(true); setStatusError('')
+    try {
+      const res = await fetch(`/api/rd/${rd.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) {
+        const data = await res.json() as { error?: string }
+        setStatusError(data.error ?? 'Failed to update status')
+        return
+      }
+      const data = await res.json() as { rd?: RDAccount }
+      if (data.rd) setRd(data.rd)
+      onRefresh()
+    } catch {
+      setStatusError('Something went wrong. Please try again.')
+    } finally {
+      setTogglingStatus(false)
     }
   }
 
@@ -137,7 +165,14 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
               {bankInitials(rd.bankName)}
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{rd.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{rd.name}</div>
+                {rd.status === 'PAUSED' && (
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-surface-raised)', padding: '2px 7px', borderRadius: '10px', border: '0.5px solid var(--color-border)', flexShrink: 0 }}>
+                    PAUSED
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'inline-block', marginTop: '3px', fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-surface-raised)', padding: '2px 7px', borderRadius: '3px' }}>
                 {rd.platform}
               </div>
@@ -169,19 +204,26 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
             ))}
           </div>
 
+          {/* Paused info note */}
+          {rd.status === 'PAUSED' && rd.pausedAt && (
+            <div style={{ padding: '8px 20px 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+              Installments paused since {formatDate(rd.pausedAt)}. Corpus earning interest until maturity.
+            </div>
+          )}
+
           {/* Info strip */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px 24px', padding: '12px 20px', borderTop: '0.5px solid var(--color-border)', borderBottom: '0.5px solid var(--color-border)' }}>
             {([
-              { label: 'Bank',           value: rd.bankName },
-              { label: 'Platform',       value: rd.platform },
-              { label: 'Monthly Amount', value: formatINR(rd.monthlyAmount) },
-              { label: 'Rate',           value: `${rd.interestRate.toFixed(2)}% p.a.` },
-              { label: 'Start Date',     value: formatDate(rd.startDate) },
-              { label: 'Maturity Date',  value: formatDate(rd.maturityDate) },
-              { label: 'Day of Month',   value: `${rd.dayOfMonth}${rd.dayOfMonth === 1 ? 'st' : rd.dayOfMonth === 2 ? 'nd' : rd.dayOfMonth === 3 ? 'rd' : 'th'}` },
-              { label: 'Auto-renew',     value: rd.isAutoRenew ? 'Yes' : 'No' },
+              { label: 'Bank',           value: rd.bankName,         dim: false },
+              { label: 'Platform',       value: rd.platform,         dim: false },
+              { label: 'Monthly Amount', value: formatINR(rd.monthlyAmount), dim: rd.status === 'PAUSED' },
+              { label: 'Rate',           value: `${rd.interestRate.toFixed(2)}% p.a.`, dim: false },
+              { label: 'Start Date',     value: formatDate(rd.startDate),    dim: false },
+              { label: 'Maturity Date',  value: formatDate(rd.maturityDate), dim: false },
+              { label: 'Day of Month',   value: `${rd.dayOfMonth}${rd.dayOfMonth === 1 ? 'st' : rd.dayOfMonth === 2 ? 'nd' : rd.dayOfMonth === 3 ? 'rd' : 'th'}`, dim: rd.status === 'PAUSED' },
+              { label: 'Auto-renew',     value: rd.isAutoRenew ? 'Yes' : 'No', dim: false },
             ]).map(item => (
-              <div key={item.label}>
+              <div key={item.label} style={{ opacity: item.dim ? 0.45 : 1 }}>
                 <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>
                   {item.label}
                 </div>
@@ -206,7 +248,7 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
           </div>
 
           {/* Top-ups section */}
-          <div style={{ padding: '14px 20px', borderBottom: '0.5px solid var(--color-border)' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '0.5px solid var(--color-border)', opacity: rd.status === 'PAUSED' ? 0.45 : 1, pointerEvents: rd.status === 'PAUSED' ? 'none' : 'auto' }}>
             <div style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
               Top-ups
             </div>
@@ -302,8 +344,16 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={onEdit} style={ghostBtnStyle}>Edit</button>
+            <button
+              onClick={handleToggleStatus}
+              disabled={togglingStatus}
+              style={{ padding: '7px 14px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: togglingStatus ? 'var(--color-text-muted)' : 'var(--color-text-muted)', fontSize: '12.5px', fontFamily: 'inherit', cursor: togglingStatus ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              {togglingStatus && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+              {togglingStatus ? (rd.status === 'PAUSED' ? 'Resuming…' : 'Pausing…') : (rd.status === 'PAUSED' ? 'Resume RD' : 'Pause RD')}
+            </button>
             <button
               onClick={handleDelete}
               disabled={deleting}
@@ -313,6 +363,7 @@ export default function RDDetailDialog({ rd: initialRd, onClose, onEdit, onDelet
               {deleting ? 'Deleting…' : 'Delete'}
             </button>
             {deleteError && <span style={{ fontSize: '11.5px', color: 'var(--color-loss)' }}>{deleteError}</span>}
+            {statusError && <span style={{ fontSize: '11.5px', color: 'var(--color-loss)' }}>{statusError}</span>}
           </div>
           <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: '6px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-secondary)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
             Close
