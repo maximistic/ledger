@@ -368,6 +368,9 @@ export default function EPFTab({ onCorpusChange }: Props) {
             Contribution history
           </div>
 
+          {/* Table — scrollable on mobile */}
+          <div className="epf-txn-scroll">
+
           {/* Table header */}
           <div className="epf-txn-grid" style={{
             display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', gap: '8px',
@@ -427,6 +430,8 @@ export default function EPFTab({ onCorpusChange }: Props) {
 
             {/* Skeleton rows shown during a re-fetch would go here — the undefined state covers initial load */}
           </div>
+
+          </div>{/* epf-txn-scroll */}
         </div>
 
         {/* Right: Retirement projection */}

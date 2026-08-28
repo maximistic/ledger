@@ -210,8 +210,8 @@ export default function CustomAssetTab({ classId, className, onSummaryRefresh, o
           </button>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '700px' }}>
+        <div className="custom-table-scroll">
+          <div className="custom-table-inner" style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '10px', overflow: 'hidden', minWidth: '700px' }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '8px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)', padding: '10px 20px' }}>
               <div style={headerCell}>Name</div>

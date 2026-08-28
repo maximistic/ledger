@@ -45,6 +45,7 @@ export default function Nav() {
       }}
     >
       <div
+        className="nav-inner"
         style={{
           maxWidth: '1280px',
           margin: '0 auto',

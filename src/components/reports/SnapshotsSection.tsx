@@ -130,7 +130,7 @@ export default function SnapshotsSection({ onLoaded }: Props) {
     <div style={{ background: 'var(--color-surface)', border: '0.5px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
 
       {/* Card header */}
-      <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="snapshots-header" style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Net worth history</div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
@@ -149,7 +149,8 @@ export default function SnapshotsSection({ onLoaded }: Props) {
 
       {loading ? (
         /* Skeleton */
-        <>
+        <div className="snapshots-table-scroll">
+        <div className="snapshots-table-inner">
           <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
             {[0, 1, 2, 3, 4].map(i => (
               <div key={i} style={{ ...SK, height: 12, width: '60%' }} />
@@ -167,7 +168,8 @@ export default function SnapshotsSection({ onLoaded }: Props) {
               <div style={{ ...SK, height: 20, width: 20, borderRadius: '4px', marginLeft: 'auto' }} />
             </div>
           ))}
-        </>
+        </div>
+        </div>
       ) : snapshots.length === 0 ? (
         /* Empty state */
         <div style={{ padding: '56px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -189,6 +191,10 @@ export default function SnapshotsSection({ onLoaded }: Props) {
         <>
           {/* Sparkline */}
           <Sparkline snapshots={snapshots} />
+
+          {/* Table — scrollable on mobile */}
+          <div className="snapshots-table-scroll">
+          <div className="snapshots-table-inner">
 
           {/* Table header */}
           <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '10px 22px', background: 'var(--color-bg)', borderBottom: '0.5px solid var(--color-border)' }}>
@@ -269,6 +275,9 @@ export default function SnapshotsSection({ onLoaded }: Props) {
               </div>
             )
           })}
+
+          </div>{/* snapshots-table-inner */}
+          </div>{/* snapshots-table-scroll */}
         </>
       )}
     </div>

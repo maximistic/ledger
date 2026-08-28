@@ -675,7 +675,7 @@ export default function SettingsPage() {
           )}
 
           {activeSection === 'export' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div className="settings-export-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {[
                 { key: 'stocks', label: 'Stocks',        desc: 'Holdings and transactions',            fn: exportStocks },
                 { key: 'mf',    label: 'Mutual Funds',   desc: 'Funds and NAV history',                fn: exportMF     },
@@ -807,7 +807,7 @@ export default function SettingsPage() {
 
                   {/* Save / Reset bar */}
                   {autoHasChanges && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
+                    <div className="settings-save-bar" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
                       <button
                         onClick={resetAutoDraft}
                         style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}
