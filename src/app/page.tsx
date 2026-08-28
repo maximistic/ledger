@@ -13,7 +13,6 @@ interface Visibility {
   trendCard: boolean
   allocationCard: boolean
   treemapCard: boolean
-  cashflowCard: boolean
   performersCard: boolean
   eventsCard: boolean
   milestonesCard: boolean
@@ -105,34 +104,12 @@ interface Milestone {
   amountAway: number
 }
 
-interface HoveredBar {
-  month: string
-  investedAmt: number
-  monthlyGain: number | null
-  barIndex: number
-}
-
-interface CashflowMonth {
-  label: string
-  month: string
-  invested: number
-  monthlyGain: number | null
-  isCurrentMonth: boolean
-}
-
-interface CashflowData {
-  months: CashflowMonth[]
-  totalInvested: number
-  sixMonthGain: number | null
-}
-
 // ── Static data ───────────────────────────────────────────────────────────────
 
 const DEFAULT_VIS: Visibility = {
   trendCard: true,
   allocationCard: true,
   treemapCard: true,
-  cashflowCard: true,
   performersCard: true,
   eventsCard: true,
   milestonesCard: true,
@@ -143,7 +120,6 @@ const TOGGLES = [
   { key: 'trendCard'      as const, label: 'Net worth trend',         locked: true  },
   { key: 'allocationCard' as const, label: 'Asset allocation',        locked: false },
   { key: 'treemapCard'    as const, label: 'Equity breakdown',        locked: false },
-  { key: 'cashflowCard'   as const, label: 'Monthly cashflow',        locked: false },
   { key: 'performersCard' as const, label: 'Best & worst performers', locked: false },
   { key: 'eventsCard'     as const, label: 'Upcoming events',         locked: false },
   { key: 'milestonesCard' as const, label: 'Milestones',              locked: false },
@@ -236,12 +212,9 @@ export default function DashboardPage() {
   const [takingSnapshot, setTakingSnapshot] = useState(false)
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
-  const [hoveredBar,     setHoveredBar]     = useState<HoveredBar | null>(null)
   const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; investedValue: number; date: Date; pct: number } | null>(null)
   const [showInvested,   setShowInvested]   = useState(true)
   const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
-  const [cashflow,       setCashflow]       = useState<CashflowData | null>(null)
-  const [xirrOverall,    setXirrOverall]    = useState<number | null>(null)
 
   // Restore persisted visibility
   useEffect(() => {
@@ -264,13 +237,11 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [summaryRes, performersRes, upcomingRes, milestonesRes, cashflowRes, xirrRes] = await Promise.all([
+        const [summaryRes, performersRes, upcomingRes, milestonesRes] = await Promise.all([
           fetch('/api/dashboard/summary'),
           fetch('/api/dashboard/performers'),
           fetch('/api/dashboard/upcoming'),
           fetch('/api/milestones'),
-          fetch('/api/reports/cashflow?months=6'),
-          fetch('/api/reports/xirr'),
         ])
         if (summaryRes.ok)    setSummary(await summaryRes.json())
         if (performersRes.ok) setPerformers(await performersRes.json())
@@ -278,11 +249,6 @@ export default function DashboardPage() {
         if (milestonesRes.ok) {
           const d = await milestonesRes.json() as { milestones: Milestone[] }
           setMilestones(d.milestones)
-        }
-        if (cashflowRes.ok) setCashflow(await cashflowRes.json())
-        if (xirrRes.ok) {
-          const xd = await xirrRes.json() as { overall: number | null }
-          setXirrOverall(xd.overall)
         }
       } catch (err) {
         console.error('Dashboard fetch error:', err)
@@ -476,7 +442,7 @@ export default function DashboardPage() {
             )}
             {!loading && (
               <span className="dashboard-header-meta" style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Invested {formatINR(summary?.totalInvested ?? 0)}{xirrOverall !== null ? ` · XIRR ${xirrOverall >= 0 ? '+' : ''}${xirrOverall.toFixed(2)}%` : ''}
+                Invested {formatINR(summary?.totalInvested ?? 0)}
               </span>
             )}
           </div>
@@ -837,128 +803,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── ROW 4: Cashflow ── */}
-      {vis.cashflowCard && (
-        <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '14px', animationDelay: '180ms' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.6px' }}>Monthly Cashflow</div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Last 6 months</span>
-          </div>
-          {loading || !cashflow ? (
-            <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
-                  {[40, 60, 35, 75, 50, 90].map((h, i) => (
-                    <div key={i} style={{ flex: 1 }}>
-                      <div style={{ ...SK, width: '100%', height: `${h}px`, borderRadius: '4px 4px 0 0' }} />
-                    </div>
-                  ))}
-                </div>
-                <div style={{ height: '0.5px', background: 'var(--color-border-subtle)', marginTop: '0' }} />
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                  {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ ...SK, flex: 1, height: '11px' }} />)}
-                </div>
-              </div>
-              <div className="cashflow-divider" style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
-              <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
-                {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: '52px', borderRadius: '8px' }} />)}
-              </div>
-            </div>
-          ) : (() => {
-            const months      = cashflow.months
-            const maxInvested = Math.max(...months.map(m => m.invested), 1)
-            return (
-              <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100px' }}>
-                    {months.map((b, barIdx) => {
-                      const invH = b.invested > 0 ? Math.max(4, Math.round((b.invested / maxInvested) * 90)) : 0
-                      return (
-                        <div
-                          key={b.label}
-                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
-                          onClick={() => router.push(`/reports?section=cashflow&month=${b.month}`)}
-                          onMouseEnter={() => setHoveredBar({ month: b.label, investedAmt: b.invested, monthlyGain: b.monthlyGain, barIndex: barIdx })}
-                          onMouseLeave={() => setHoveredBar(null)}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%' }}>
-                            <div style={{ height: invH, flex: 1, borderRadius: '4px 4px 0 0', background: b.isCurrentMonth ? 'var(--color-text-primary)' : '#E8E6DE' }} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {hoveredBar !== null && (() => {
-                    const leftPct = ((hoveredBar.barIndex + 0.5) / months.length) * 100
-                    return (
-                      <div style={{ position: 'absolute', bottom: '108px', left: `${leftPct}%`, transform: 'translateX(-50%)', background: 'var(--color-text-primary)', color: 'var(--color-surface)', borderRadius: '7px', padding: '7px 11px', fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10 }}>
-                        <div style={{ fontWeight: 600, marginBottom: '3px' }}>{hoveredBar.month}</div>
-                        <div>Invested: {formatINR(hoveredBar.investedAmt)}</div>
-                        {hoveredBar.monthlyGain != null && (
-                          <div style={{ color: hoveredBar.monthlyGain >= 0 ? '#4ADE80' : '#F87171', marginTop: '2px' }}>
-                            {hoveredBar.monthlyGain >= 0 ? 'Gain' : 'Loss'}: {hoveredBar.monthlyGain >= 0 ? '+' : '-'}{formatINR(Math.abs(hoveredBar.monthlyGain))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-
-                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                    {months.map(b => (
-                      <div key={b.label} style={{ flex: 1, textAlign: 'center', fontSize: '9.5px', color: b.isCurrentMonth ? 'var(--color-text-primary)' : '#C8C4B8', fontWeight: b.isCurrentMonth ? 600 : 400 }}>
-                        {b.label}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '2px', background: 'var(--color-text-primary)' }} />
-                      Invested
-                    </span>
-                  </div>
-                </div>
-                <div className="cashflow-divider" style={{ width: '0.5px', background: 'var(--color-border-subtle)', alignSelf: 'stretch', marginBottom: '22px' }} />
-                <div className="cashflow-stats" style={{ width: '170px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '22px' }}>
-                  <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>This month</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatINR(months.find(m => m.isCurrentMonth)?.invested ?? 0)}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>invested</div>
-                  </div>
-                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-                  <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Return</div>
-                    {cashflow.sixMonthGain != null ? (
-                      <>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: cashflow.sixMonthGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
-                          {cashflow.sixMonthGain >= 0 ? '+' : '-'}{formatINR(Math.abs(cashflow.sixMonthGain))}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>over 6 months</div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-muted)', lineHeight: 1.1 }}>—</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>no snapshots yet</div>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ height: '0.5px', background: 'var(--color-border-subtle)' }} />
-                  <div>
-                    <div style={{ fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.5px', marginBottom: '3px' }}>6M Total</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatINR(cashflow.totalInvested)}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>deployed over 6 months</div>
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-        </div>
-      )}
-
-      {/* ── ROW 5: Performers ── */}
+      {/* ── ROW 4: Performers ── */}
       {vis.performersCard && (
         <div className="dashboard-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
 

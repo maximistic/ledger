@@ -2,8 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Moon, Sun, Settings, LayoutDashboard, Briefcase, BarChart2 } from 'lucide-react'
-import { useTheme } from '@/context/ThemeContext'
+import { Settings, LayoutDashboard, Briefcase, BarChart2 } from 'lucide-react'
 
 const navLinks = [
   { href: '/', label: 'Dashboard' },
@@ -27,7 +26,6 @@ const iconButtonStyle: React.CSSProperties = {
 export default function Nav() {
   const pathname = usePathname()
   const router = useRouter()
-  const { theme, toggleTheme } = useTheme()
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -108,9 +106,6 @@ export default function Nav() {
           <button onClick={() => router.push('/settings')} style={iconButtonStyle}>
             <Settings size={16} />
           </button>
-          <button onClick={toggleTheme} style={iconButtonStyle}>
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
         </div>
       </div>
 
@@ -143,26 +138,6 @@ export default function Nav() {
             <span>{label}</span>
           </Link>
         ))}
-        <button
-          onClick={toggleTheme}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '3px',
-            color: 'var(--nav-text)',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '10px',
-            fontWeight: 400,
-          }}
-        >
-          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-          <span>Theme</span>
-        </button>
       </div>
     </nav>
   )

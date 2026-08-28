@@ -2,37 +2,29 @@
 
 import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import CashflowSection   from '@/components/reports/CashflowSection'
 import MilestonesSection from '@/components/reports/MilestonesSection'
 import SnapshotsSection  from '@/components/reports/SnapshotsSection'
-import XIRRSection       from '@/components/reports/XIRRSection'
 
-type ReportSection = 'cashflow' | 'milestones' | 'snapshots' | 'xirr'
+type ReportSection = 'milestones' | 'snapshots'
 
 const BASE_RAIL: Array<{ key: ReportSection; label: string; sub: string }> = [
-  { key: 'cashflow',   label: 'CASHFLOW',   sub: 'Monthly analysis' },
   { key: 'milestones', label: 'MILESTONES', sub: 'Track your goals' },
   { key: 'snapshots',  label: 'SNAPSHOTS',  sub: 'Net worth history' },
-  { key: 'xirr',       label: 'XIRR',       sub: 'Annualised returns' },
 ]
 
 const SECTION_META: Record<ReportSection, { title: string; subtitle: string }> = {
-  cashflow:   { title: 'Monthly cashflow',   subtitle: 'All investments made across your portfolio' },
   milestones: { title: 'Milestones',         subtitle: 'Track and celebrate your financial goals' },
   snapshots:  { title: 'Snapshots',          subtitle: 'Your net worth history over time' },
-  xirr:       { title: 'XIRR',              subtitle: 'Annualised returns by asset class' },
 }
 
 function ReportsContent() {
-  const [activeSection, setActiveSection] = useState<ReportSection>('cashflow')
+  const [activeSection, setActiveSection] = useState<ReportSection>('milestones')
   const [subOverrides,  setSubOverrides]  = useState<Partial<Record<ReportSection, string>>>({})
   const searchParams = useSearchParams()
 
-  const cashflowMonth = searchParams.get('month') ?? undefined
-
   useEffect(() => {
     const section = searchParams.get('section')
-    if (section) setActiveSection(section as ReportSection)
+    if (section && (section === 'milestones' || section === 'snapshots')) setActiveSection(section as ReportSection)
   }, [searchParams])
 
   const onMilestoneLoaded = useCallback((sub: string) => {
@@ -121,10 +113,8 @@ function ReportsContent() {
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '4px' }}>{subtitle}</div>
           </div>
 
-          {activeSection === 'cashflow'   && <CashflowSection initialMonth={cashflowMonth} />}
           {activeSection === 'milestones' && <MilestonesSection onLoaded={onMilestoneLoaded} />}
           {activeSection === 'snapshots'  && <SnapshotsSection  onLoaded={onSnapshotLoaded}  />}
-          {activeSection === 'xirr'       && <XIRRSection />}
         </div>
       </div>
     </>
