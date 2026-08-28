@@ -137,9 +137,11 @@ export default function SettingsPage() {
   const [csvDone,    setCsvDone]    = useState<string | null>(null)
 
   // Automation
-  const [autoConfig,  setAutoConfig]  = useState<SnapshotConfig | null>(null)
-  const [autoLoading, setAutoLoading] = useState(false)
-  const [autoSaving,  setAutoSaving]  = useState(false)
+  const [autoConfig,       setAutoConfig]       = useState<SnapshotConfig | null>(null)
+  const [autoDraft,        setAutoDraft]        = useState<SnapshotConfig | null>(null)
+  const [autoLoading,      setAutoLoading]      = useState(false)
+  const [autoSaving,       setAutoSaving]       = useState(false)
+  const [autoToast,        setAutoToast]        = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   // Danger
   const [dangerConfirm, setDangerConfirm] = useState<DangerKey>(null)
@@ -236,22 +238,54 @@ export default function SettingsPage() {
     setAutoLoading(true)
     fetch('/api/snapshot-config')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setAutoConfig(d.config) })
+      .then(d => { if (d) { setAutoConfig(d.config); setAutoDraft(d.config) } })
       .finally(() => setAutoLoading(false))
   }, [activeSection])
 
-  async function patchAutoConfig(patch: Partial<Pick<SnapshotConfig, 'enabled' | 'dayOfWeek' | 'hour' | 'refreshPrices'>>) {
+  function patchAutoDraft(patch: Partial<Pick<SnapshotConfig, 'enabled' | 'dayOfWeek' | 'hour' | 'refreshPrices'>>) {
+    setAutoDraft(prev => prev ? { ...prev, ...patch } : prev)
+  }
+
+  function resetAutoDraft() {
+    setAutoDraft(autoConfig)
+  }
+
+  const autoHasChanges = autoConfig && autoDraft && (
+    autoConfig.enabled       !== autoDraft.enabled       ||
+    autoConfig.dayOfWeek     !== autoDraft.dayOfWeek     ||
+    autoConfig.hour          !== autoDraft.hour          ||
+    autoConfig.refreshPrices !== autoDraft.refreshPrices
+  )
+
+  function showAutoToast(type: 'success' | 'error', msg: string) {
+    setAutoToast({ type, msg })
+    setTimeout(() => setAutoToast(null), 3000)
+  }
+
+  async function saveAutoConfig() {
+    if (!autoDraft) return
     setAutoSaving(true)
     try {
       const res = await fetch('/api/snapshot-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify({
+          enabled:       autoDraft.enabled,
+          dayOfWeek:     autoDraft.dayOfWeek,
+          hour:          autoDraft.hour,
+          refreshPrices: autoDraft.refreshPrices,
+        }),
       })
       if (res.ok) {
         const d = await res.json() as { config: SnapshotConfig }
         setAutoConfig(d.config)
+        setAutoDraft(d.config)
+        showAutoToast('success', 'Automation settings saved')
+      } else {
+        showAutoToast('error', 'Failed to save — please try again')
       }
+    } catch {
+      showAutoToast('error', 'Failed to save — please try again')
     } finally {
       setAutoSaving(false)
     }
@@ -679,7 +713,20 @@ export default function SettingsPage() {
           {/* ── AUTOMATION ── */}
           {activeSection === 'automation' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {autoLoading || !autoConfig ? (
+              {/* Toast */}
+              {autoToast && (
+                <div style={{
+                  position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+                  zIndex: 9999, padding: '10px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
+                  background: autoToast.type === 'success' ? '#166534' : '#7F1D1D',
+                  color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                  pointerEvents: 'none',
+                }}>
+                  {autoToast.type === 'success' ? '✓ ' : '✕ '}{autoToast.msg}
+                </div>
+              )}
+
+              {autoLoading || !autoDraft ? (
                 <div style={{ ...card, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: 14, width: i === 1 ? '40%' : '60%' }} />)}
                 </div>
@@ -693,34 +740,32 @@ export default function SettingsPage() {
                         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Automatically save net worth at the scheduled time</div>
                       </div>
                       <button
-                        onClick={() => patchAutoConfig({ enabled: !autoConfig.enabled })}
-                        disabled={autoSaving}
-                        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoConfig.enabled ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
+                        onClick={() => patchAutoDraft({ enabled: !autoDraft.enabled })}
+                        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoDraft.enabled ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
                       >
-                        <div style={{ position: 'absolute', top: 2, left: autoConfig.enabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
+                        <div style={{ position: 'absolute', top: 2, left: autoDraft.enabled ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
                       </button>
                     </div>
-                    <div style={{ padding: '8px 22px 14px', fontSize: '12px', color: autoConfig.lastRunAt ? 'var(--color-text-muted)' : 'var(--color-text-muted)', borderTop: '0.5px solid var(--color-border)' }}>
-                      {autoConfig.lastRunAt
+                    <div style={{ padding: '8px 22px 14px', fontSize: '12px', color: 'var(--color-text-muted)', borderTop: '0.5px solid var(--color-border)' }}>
+                      {autoConfig?.lastRunAt
                         ? `Last run: ${new Date(autoConfig.lastRunAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                         : 'Never run'}
                     </div>
                   </div>
 
                   {/* Schedule options (only when enabled) */}
-                  {autoConfig.enabled && (
+                  {autoDraft.enabled && (
                     <div style={card}>
                       {/* Day of week */}
                       <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)' }}>
                         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px', fontWeight: 500 }}>Day of week</div>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => {
-                            const active = autoConfig.dayOfWeek === i
+                            const active = autoDraft.dayOfWeek === i
                             return (
                               <button
                                 key={d}
-                                onClick={() => patchAutoConfig({ dayOfWeek: i })}
-                                disabled={autoSaving}
+                                onClick={() => patchAutoDraft({ dayOfWeek: i })}
                                 style={{ padding: '5px 11px', borderRadius: '20px', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', border: active ? '1.5px solid var(--color-text-primary)' : '1px solid var(--color-border)', background: active ? 'var(--color-text-primary)' : 'transparent', color: active ? 'var(--color-surface)' : 'var(--color-text-muted)', fontWeight: active ? 600 : 400, transition: 'all 140ms ease' }}
                               >
                                 {d}
@@ -734,9 +779,8 @@ export default function SettingsPage() {
                       <div style={{ padding: '16px 22px', borderBottom: '0.5px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--color-text-primary)' }}>Time</div>
                         <select
-                          value={autoConfig.hour}
-                          onChange={e => patchAutoConfig({ hour: +e.target.value })}
-                          disabled={autoSaving}
+                          value={autoDraft.hour}
+                          onChange={e => patchAutoDraft({ hour: +e.target.value })}
                           style={{ ...inputStyle, width: 'auto', padding: '6px 10px', fontSize: '13px' }}
                         >
                           {Array.from({ length: 24 }, (_, h) => (
@@ -752,13 +796,31 @@ export default function SettingsPage() {
                           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fetch latest prices before saving</div>
                         </div>
                         <button
-                          onClick={() => patchAutoConfig({ refreshPrices: !autoConfig.refreshPrices })}
-                          disabled={autoSaving}
-                          style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoConfig.refreshPrices ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
+                          onClick={() => patchAutoDraft({ refreshPrices: !autoDraft.refreshPrices })}
+                          style={{ width: 44, height: 24, borderRadius: 12, border: 'none', padding: 0, position: 'relative', flexShrink: 0, cursor: 'pointer', background: autoDraft.refreshPrices ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', transition: 'background 160ms ease' }}
                         >
-                          <div style={{ position: 'absolute', top: 2, left: autoConfig.refreshPrices ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
+                          <div style={{ position: 'absolute', top: 2, left: autoDraft.refreshPrices ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: 'var(--color-surface)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'left 160ms ease' }} />
                         </button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Save / Reset bar */}
+                  {autoHasChanges && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
+                      <button
+                        onClick={resetAutoDraft}
+                        style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        onClick={saveAutoConfig}
+                        disabled={autoSaving}
+                        style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: 'var(--color-text-primary)', color: 'var(--color-surface)', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', cursor: autoSaving ? 'default' : 'pointer', opacity: autoSaving ? 0.7 : 1 }}
+                      >
+                        {autoSaving ? 'Saving…' : 'Save changes'}
+                      </button>
                     </div>
                   )}
                 </>

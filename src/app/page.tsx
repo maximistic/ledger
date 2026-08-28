@@ -878,40 +878,40 @@ export default function DashboardPage() {
       {/* ── ROW 6: Upcoming events ── */}
       {vis.eventsCard && (
         <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '14px', animationDelay: '270ms' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={TITLE_STYLE}>Upcoming</div>
-          </div>
+          <div style={TITLE_STYLE}>Upcoming</div>
           {loading ? (
-            <div className="upcoming-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-              {[1, 2, 3, 4].map(i => <div key={i} style={{ ...SK, height: 90, borderRadius: '9px' }} />)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[1, 2, 3, 4].map(i => <div key={i} style={{ ...SK, height: 36, borderRadius: '8px' }} />)}
             </div>
           ) : !upcoming?.events?.length ? (
             <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0' }}>
               No upcoming events in the next 90 days
             </div>
           ) : (
-            <div className="upcoming-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-              {upcoming.events.slice(0, 4).map(ev => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {upcoming.events.slice(0, 6).map((ev) => {
                 const isUrgent = ev.urgency === 'HIGH'
                 const dot      = eventDotColor(ev)
                 const typeText = eventTypeLabel(ev)
                 const evDate   = new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                 return (
-                  <div key={ev.id} style={{ background: isUrgent ? '#FFF5F5' : 'var(--color-surface-raised)', borderRadius: '9px', border: `0.5px solid ${isUrgent ? '#FECDD3' : 'var(--color-border)'}`, padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-                      <span style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.5px', color: isUrgent ? '#DC2626' : 'var(--color-text-muted)', fontWeight: 600 }}>
+                  <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '9px', background: isUrgent ? '#FFF5F5' : 'var(--color-surface-raised)', border: `0.5px solid ${isUrgent ? '#FECDD3' : 'var(--color-border)'}` }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ev.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
                         {typeText}
-                      </span>
+                      </div>
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: '2px' }}>
-                      {ev.label}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      {formatINR(ev.amount)}
-                    </div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: isUrgent ? '#DC2626' : 'var(--color-text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
-                      {evDate}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: isUrgent ? '#DC2626' : 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatINR(ev.amount)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: isUrgent ? '#DC2626' : 'var(--color-text-muted)', marginTop: '1px', fontVariantNumeric: 'tabular-nums' }}>
+                        {evDate}
+                      </div>
                     </div>
                   </div>
                 )

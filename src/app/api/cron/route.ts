@@ -154,8 +154,15 @@ async function processFDs(): Promise<{ processed: number; errors: string[] }> {
 
 async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; error?: string }> {
   try {
-    const today      = new Date()
-    const dayOfWeek  = today.getDay() // 0 = Sunday
+    const today = new Date()
+
+    const config = await prisma.snapshotConfig.findFirst()
+    if (config && !config.enabled) return { created: false, skipped: true }
+
+    const scheduledDay  = config?.dayOfWeek ?? 0
+    const scheduledHour = config?.hour      ?? 22
+    const todayDay      = today.getDay()
+    const todayHour     = today.getHours()
 
     const lastSnapshot = await prisma.snapshot.findFirst({ orderBy: { date: 'desc' } })
 
@@ -164,10 +171,15 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
       const daysSinceLast = Math.floor(
         (today.getTime() - lastSnapshot.date.getTime()) / (1000 * 60 * 60 * 24)
       )
-      shouldCreate = dayOfWeek === 0 || daysSinceLast >= 7
+      const isScheduledSlot = todayDay === scheduledDay && todayHour >= scheduledHour
+      shouldCreate = isScheduledSlot || daysSinceLast >= 7
     }
 
     if (!shouldCreate) return { created: false, skipped: true }
+
+    if (config) {
+      await prisma.snapshotConfig.update({ where: { id: config.id }, data: { lastRunAt: today } })
+    }
 
     const [stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses] = await Promise.all([
       prisma.stock.findMany(),
