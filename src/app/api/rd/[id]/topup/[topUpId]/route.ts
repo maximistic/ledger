@@ -23,8 +23,6 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const topUp = rd.topUps.find(t => t.id === topUpId)
     if (!topUp) return NextResponse.json({ error: 'Top-up not found' }, { status: 404 })
 
-    await prisma.rDTopUp.delete({ where: { id: topUpId } })
-
     const remainingTopUps = rd.topUps.filter(t => t.id !== topUpId)
     const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
       monthlyAmount: rd.monthlyAmount,
@@ -42,10 +40,13 @@ export async function DELETE(_req: Request, { params }: Ctx) {
       maturityDate:  rd.maturityDate,
     })
 
-    const updatedRd = await prisma.rDAccount.update({
-      where:   { id },
-      data:    { currentValue, totalInvested, maturityValue, interestEarned },
-      include: { topUps: true },
+    const updatedRd = await prisma.$transaction(async (tx) => {
+      await tx.rDTopUp.delete({ where: { id: topUpId } })
+      return tx.rDAccount.update({
+        where:   { id },
+        data:    { currentValue, totalInvested, maturityValue, interestEarned },
+        include: { topUps: true },
+      })
     })
 
     return NextResponse.json({ success: true, rd: updatedRd })

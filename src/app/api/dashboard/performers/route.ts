@@ -57,7 +57,6 @@ export async function GET() {
       const totalInvested = cls.entries.reduce((s, e) => s + e.purchasePrice, 0)
       const totalCurrent  = cls.entries.reduce((s, e) => s + e.currentValue, 0)
       if (totalInvested <= 0) continue
-      console.log('[performers] custom class', cls.name, 'invested', totalInvested, 'current', totalCurrent)
       performers.push({
         name:         cls.name,
         ticker:       cls.name.slice(0, 4).toUpperCase(),

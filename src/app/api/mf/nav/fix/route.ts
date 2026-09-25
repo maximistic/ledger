@@ -76,7 +76,6 @@ export async function POST() {
       await new Promise(r => setTimeout(r, 500))
     }
 
-    console.log('[NAV fix] results:', JSON.stringify(results))
     return NextResponse.json({ results })
   } catch (err) {
     console.error('[POST /api/mf/nav/fix]', err)

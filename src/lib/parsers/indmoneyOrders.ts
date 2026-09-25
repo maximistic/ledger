@@ -97,6 +97,5 @@ export function parseINDmoneyOrders(buffer: Buffer): Array<{
   }
 
   results.sort((a, b) => a.date.getTime() - b.date.getTime())
-  console.log('Parsed orders sample:', results[0])
   return results
 }

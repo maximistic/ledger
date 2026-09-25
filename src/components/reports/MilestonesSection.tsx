@@ -107,7 +107,6 @@ export default function MilestonesSection({ onLoaded }: Props) {
         const res = await fetch('/api/custom-assets')
         if (res.ok) {
           const d = await res.json() as { classes: { id: string; name: string }[] }
-          console.log('[MilestonesSection] custom classes loaded:', d.classes.length)
           setCustomClasses(d.classes)
         }
       } catch (err) {

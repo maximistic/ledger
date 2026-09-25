@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     if (maturity <= start) return NextResponse.json({ error: 'maturityDate must be after startDate' }, { status: 400 })
 
     const dom = typeof dayOfMonth === 'number' ? dayOfMonth : 1
+    if (dom < 1 || dom > 28) return NextResponse.json({ error: 'dayOfMonth must be 1–28' }, { status: 400 })
 
     type TopUpInput = { amount: number; startDate: string; isRecurring: boolean; notes?: string }
     const topUpList: TopUpInput[] = Array.isArray(topUps) ? topUps as TopUpInput[] : []
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
     for (const t of topUpList) {
       if (typeof t.amount !== 'number' || t.amount <= 0) {
         return NextResponse.json({ error: 'Each topUp.amount must be a positive number' }, { status: 400 })
+      }
+      if (typeof t.startDate !== 'string' || isNaN(new Date(t.startDate).getTime())) {
+        return NextResponse.json({ error: 'Each topUp.startDate must be a valid date' }, { status: 400 })
       }
     }
 

@@ -97,7 +97,7 @@ export default function AddEditFundDialog({ mode, fund, onClose, onSuccess }: Pr
         if (data?.meta?.fund_house) setFundHouse(data.meta.fund_house)
         if (data?.meta?.scheme_category) setFundCategory(data.meta.scheme_category)
       })
-      .catch(() => {})
+      .catch(err => console.error('[AddEditFundDialog] AMFI meta fetch failed:', err))
   }
 
   function recalculate(changed: 'units' | 'avgNav' | 'invested', value: string) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parseINDmoneyHoldings } from '@/lib/parsers/indmoneyHoldings'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 
 // Holdings is the source of truth for current position (upsert, not additive).
 // holdingsQuantity is updated to the file value on every import.
@@ -33,8 +34,7 @@ export async function POST(request: NextRequest) {
   if (rows.length === 0)
     return NextResponse.json({ error: 'No valid rows found in file' }, { status: 422 })
 
-  // Use a default exchange rate of 84 if not set on existing stock
-  const DEFAULT_RATE = 84
+  const DEFAULT_RATE = DEFAULT_USD_INR_RATE
 
   let imported = 0
   let updated  = 0

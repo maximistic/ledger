@@ -101,23 +101,27 @@ export async function POST(request: NextRequest) {
           },
         })
 
+    // Bulk-fetch all existing transactions once and deduplicate in-memory
+    const existingTxns = await prisma.ePFTransaction.findMany({
+      where: { accountId: account.id },
+      select: { wageMonth: true, type: true, employeeAmount: true },
+    })
+    const existingKeys = new Set(
+      existingTxns.map(t => `${t.wageMonth}|${t.type}|${t.employeeAmount}`)
+    )
+
     let created = 0
     let skipped = 0
 
-    for (const txn of parsed.transactions) {
-      const duplicate = await prisma.ePFTransaction.findFirst({
-        where: {
-          accountId:      account.id,
-          wageMonth:      txn.wageMonth,
-          type:           txn.type,
-          employeeAmount: txn.employeeAmount,
-        },
-      })
+    const toCreate = parsed.transactions.filter(txn => {
+      const key = `${txn.wageMonth}|${txn.type}|${txn.employeeAmount}`
+      if (existingKeys.has(key)) { skipped++; return false }
+      return true
+    })
 
-      if (duplicate) { skipped++; continue }
-
-      await prisma.ePFTransaction.create({
-        data: {
+    if (toCreate.length > 0) {
+      await prisma.ePFTransaction.createMany({
+        data: toCreate.map(txn => ({
           accountId:       account.id,
           wageMonth:       txn.wageMonth,
           transactionDate: txn.transactionDate,
@@ -128,9 +132,9 @@ export async function POST(request: NextRequest) {
           employerAmount:  txn.employerAmount,
           pensionAmount:   txn.pensionAmount,
           autoCreated:     false,
-        },
+        })),
       })
-      created++
+      created = toCreate.length
     }
 
     return NextResponse.json({

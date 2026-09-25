@@ -1,220 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import type { CSSProperties } from 'react'
-import { TrendingUp, LayoutDashboard, Camera, X, Check, Flag, Plus } from 'lucide-react'
+import { TrendingUp, LayoutDashboard, Camera, AlertCircle } from 'lucide-react'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type TabKey = '1M' | '6M' | '1Y' | '5Y'
-
-interface Visibility {
-  trendCard: boolean
-  allocationCard: boolean
-  treemapCard: boolean
-  performersCard: boolean
-  eventsCard: boolean
-  milestonesCard: boolean
-}
-
-interface RiskBucket { value: number; pct: number }
-
-interface DashboardSummary {
-  totalNetWorth: number
-  totalInvested: number
-  gainLoss: number
-  gainLossPct: number
-  riskProfile: {
-    equity:        RiskBucket
-    debt:          RiskBucket
-    gold:          RiskBucket
-    international: RiskBucket
-  }
-  allocation: {
-    stocks: number
-    mf: number
-    epf: number
-    fd: number
-    rd: number
-    usStocks: number
-    custom?: number
-  }
-  breakdown: {
-    stocks:   { value: number; invested: number }
-    mf:       { value: number; invested: number }
-    epf:      { value: number; invested: number }
-    fd:       { value: number; invested: number }
-    rd:       { value: number; invested: number }
-    usStocks: { value: number; invested: number }
-    custom?:        { value: number; count: number }
-    customClasses?: { id: string; name: string; value: number; purchasePrice: number }[]
-  }
-}
-
-interface SnapshotPoint {
-  date: string
-  totalNetWorth: number
-  investedValue: number
-}
-
-interface SnapshotData {
-  period: string
-  changeAmt: number
-  changePct: number
-  chartData: SnapshotPoint[]
-}
-
-interface Performer {
-  name: string
-  ticker: string
-  assetClass: string
-  gainLossPct: number
-  currentValue: number
-}
-
-interface Performers {
-  gainers: Performer[]
-  losers: Performer[]
-}
-
-interface UpcomingEvent {
-  id: string
-  type: 'FD_MATURITY' | 'RD_MATURITY' | 'EPF_CONTRIBUTION' | 'RD_INSTALLMENT' | 'SIP'
-  label: string
-  date: string
-  amount: number
-  daysLeft: number
-  urgency: 'HIGH' | 'MEDIUM' | 'LOW'
-}
-
-interface UpcomingEvents {
-  events: UpcomingEvent[]
-}
-
-interface Milestone {
-  id: string
-  title: string
-  targetAmount: number
-  targetAsset: string | null
-  achievedDate: string | null
-  isAchieved: boolean
-  currentValue: number
-  progressPct: number
-  amountAway: number
-}
-
-// ── Static data ───────────────────────────────────────────────────────────────
-
-const DEFAULT_VIS: Visibility = {
-  trendCard: true,
-  allocationCard: true,
-  treemapCard: true,
-  performersCard: true,
-  eventsCard: true,
-  milestonesCard: true,
-}
-
-
-const TOGGLES = [
-  { key: 'trendCard'      as const, label: 'Net worth trend',         locked: true  },
-  { key: 'allocationCard' as const, label: 'Asset allocation',        locked: false },
-  { key: 'treemapCard'    as const, label: 'Equity breakdown',        locked: false },
-  { key: 'performersCard' as const, label: 'Best & worst performers', locked: false },
-  { key: 'eventsCard'     as const, label: 'Upcoming events',         locked: false },
-  { key: 'milestonesCard' as const, label: 'Milestones',              locked: false },
-]
-
-// ── Shared styles ─────────────────────────────────────────────────────────────
-
-const card = {
-  background: 'var(--color-surface)',
-  border: '0.5px solid var(--color-border)',
-  borderRadius: '12px',
-}
-
-const TITLE_STYLE: CSSProperties = {
-  fontSize: '11px',
-  textTransform: 'uppercase',
-  color: 'var(--color-text-muted)',
-  letterSpacing: '0.7px',
-  fontWeight: 600,
-  marginBottom: '14px',
-}
-
-const SK: CSSProperties = {
-  background: 'var(--color-surface-raised)',
-  borderRadius: '6px',
-  animation: 'pulse 1.5s ease-in-out infinite',
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-function formatINR(value: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
-function formatShort(value: number): string {
-  if (value >= 10_000_000) return `₹${(value / 10_000_000).toFixed(2)}Cr`
-  if (value >= 100_000)    return `₹${(value / 100_000).toFixed(1)}L`
-  if (value >= 1_000)      return `₹${(value / 1_000).toFixed(1)}K`
-  return `₹${Math.round(value)}`
-}
-
-function formatMilestoneDate(d: string | null): string {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function eventDotColor(ev: UpcomingEvent): string {
-  if (ev.type === 'FD_MATURITY')      return ev.urgency === 'HIGH' ? 'var(--color-loss)' : 'var(--color-asset-fdrd)'
-  if (ev.type === 'RD_MATURITY')      return 'var(--color-asset-fdrd)'
-  if (ev.type === 'RD_INSTALLMENT')   return 'var(--color-asset-fdrd)'
-  if (ev.type === 'EPF_CONTRIBUTION') return 'var(--color-asset-epf)'
-  if (ev.type === 'SIP')             return 'var(--color-asset-epf)'
-  return 'var(--color-text-muted)'
-}
-
-function eventTypeLabel(ev: UpcomingEvent): string {
-  if (ev.type === 'FD_MATURITY')      return `FD · ${ev.daysLeft}d`
-  if (ev.type === 'RD_MATURITY')      return 'RD maturity'
-  if (ev.type === 'RD_INSTALLMENT')   return 'RD'
-  if (ev.type === 'EPF_CONTRIBUTION') return 'EPF'
-  if (ev.type === 'SIP')             return 'SIP'
-  return ev.type
-}
-
-function getLabel(date: Date, period: string): string {
-  if (period === '1M') return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-  if (period === '5Y') return date.toLocaleDateString('en-IN', { year: 'numeric' })
-  const showYear = date.getMonth() === 0
-  return date.toLocaleDateString('en-IN', { month: 'short', ...(showYear ? { year: '2-digit' } : {}) })
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
+import type { DashboardSummary, SnapshotData, Performers, UpcomingEvents, Milestone, TabKey, Visibility } from '@/components/dashboard/types'
+import { DEFAULT_VIS, formatINR, SK } from '@/components/dashboard/shared'
+import NetWorthTrendCard  from '@/components/dashboard/NetWorthTrendCard'
+import AllocationCard     from '@/components/dashboard/AllocationCard'
+import TreemapCard        from '@/components/dashboard/TreemapCard'
+import PerformersCard     from '@/components/dashboard/PerformersCard'
+import UpcomingEventsCard from '@/components/dashboard/UpcomingEventsCard'
+import MilestonesCard     from '@/components/dashboard/MilestonesCard'
+import CustomiseModal     from '@/components/dashboard/CustomiseModal'
 
 export default function DashboardPage() {
-  const router = useRouter()
-
   const [summary,        setSummary]        = useState<DashboardSummary | null>(null)
   const [snapshots,      setSnapshots]      = useState<SnapshotData | null>(null)
   const [performers,     setPerformers]     = useState<Performers | null>(null)
   const [upcoming,       setUpcoming]       = useState<UpcomingEvents | null>(null)
   const [milestones,     setMilestones]     = useState<Milestone[]>([])
   const [loading,        setLoading]        = useState(true)
+  const [fetchError,     setFetchError]     = useState<string | null>(null)
   const [activeTab,      setActiveTab]      = useState<TabKey>('1Y')
   const [snapshotToast,  setSnapshotToast]  = useState(false)
   const [takingSnapshot, setTakingSnapshot] = useState(false)
   const [modal,          setModal]          = useState(false)
   const [vis,            setVis]            = useState<Visibility>(DEFAULT_VIS)
-  const [hoveredPoint,   setHoveredPoint]   = useState<{ x: number; y: number; value: number; investedValue: number; date: Date; pct: number } | null>(null)
-  const [showInvested,   setShowInvested]   = useState(true)
-  const [hoveredSegment, setHoveredSegment] = useState<string | null>(null)
 
   // Restore persisted visibility
   useEffect(() => {
@@ -224,18 +35,11 @@ export default function DashboardPage() {
     } catch {}
   }, [])
 
-  // Escape closes modal
-  useEffect(() => {
-    if (!modal) return
-    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setModal(false) }
-    document.addEventListener('keydown', fn)
-    return () => document.removeEventListener('keydown', fn)
-  }, [modal])
-
   // Fetch summary, performers, upcoming, milestones on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
+      setFetchError(null)
       try {
         const [summaryRes, performersRes, upcomingRes, milestonesRes] = await Promise.all([
           fetch('/api/dashboard/summary'),
@@ -243,7 +47,13 @@ export default function DashboardPage() {
           fetch('/api/dashboard/upcoming'),
           fetch('/api/milestones'),
         ])
-        if (summaryRes.ok)    setSummary(await summaryRes.json())
+
+        if (!summaryRes.ok) {
+          const err = await summaryRes.json().catch(() => ({})) as { error?: string }
+          throw new Error(err.error ?? `Summary failed (${summaryRes.status})`)
+        }
+
+        setSummary(await summaryRes.json())
         if (performersRes.ok) setPerformers(await performersRes.json())
         if (upcomingRes.ok)   setUpcoming(await upcomingRes.json())
         if (milestonesRes.ok) {
@@ -251,7 +61,7 @@ export default function DashboardPage() {
           setMilestones(d.milestones)
         }
       } catch (err) {
-        console.error('Dashboard fetch error:', err)
+        setFetchError(err instanceof Error ? err.message : 'Failed to load dashboard data')
       } finally {
         setLoading(false)
       }
@@ -290,128 +100,12 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Derived values ──────────────────────────────────────────────────────────
-
   const monthYear  = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const isPositive = (summary?.gainLoss ?? 0) >= 0
-  const chartData  = snapshots?.chartData ?? []
-  const hasChart   = chartData.length > 0
-
-  // SVG chart paths
-  let pathD        = ''
-  let fillD        = ''
-  let investedPathD = ''
-  let lastPt       = { x: 900, y: 5 }
-  let monthLabels: { label: string; x: number }[] = []
-  let chartTimes: number[] = []
-  let chartMinTime = 0
-  let chartTimeRange = 1
-
-  if (hasChart) {
-    const times     = chartData.map(s => new Date(s.date + 'T00:00:00').getTime())
-    const minTime   = times[0]
-    const maxTime   = times[times.length - 1]
-    const timeRange = maxTime - minTime || 1
-    chartTimes    = times
-    chartMinTime  = minTime
-    chartTimeRange = timeRange
-
-    const allValues = [...chartData.map(s => s.totalNetWorth), ...chartData.map(s => s.investedValue)]
-    const minVal = Math.min(...allValues)
-    const maxVal = Math.max(...allValues)
-    const range  = maxVal - minVal || 1
-
-    const xOf = (i: number) => chartData.length === 1 ? 450 : ((times[i] - minTime) / timeRange) * 900
-    const yOf = (v: number) => 150 - ((v - minVal) / range) * 130
-
-    const pts = chartData.map((s, i) => ({ x: xOf(i), y: yOf(s.totalNetWorth) }))
-    const ipts = chartData.map((s, i) => ({ x: xOf(i), y: yOf(s.investedValue) }))
-
-    const buildPath = (points: { x: number; y: number }[]) =>
-      points.reduce((d, pt, i) => {
-        if (i === 0) return `M${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
-        const prev = points[i - 1]
-        const cpx  = ((prev.x + pt.x) / 2).toFixed(1)
-        return d + ` C${cpx},${prev.y.toFixed(1)} ${cpx},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`
-      }, '')
-
-    pathD        = buildPath(pts)
-    investedPathD = buildPath(ipts)
-    const firstPt = pts[0]
-    lastPt        = pts[pts.length - 1]
-    fillD         = pathD + ` L${lastPt.x.toFixed(1)},160 L${firstPt.x.toFixed(1)},160 Z`
-
-    const intervalDays: Record<TabKey, number> = { '1M': 3, '6M': 21, '1Y': 60, '5Y': 365 }
-    const intervalMs = intervalDays[activeTab] * 24 * 60 * 60 * 1000
-    let t = minTime
-    while (t <= maxTime) {
-      const x = timeRange === 0 ? 450 : ((t - minTime) / timeRange) * 900
-      monthLabels.push({ label: getLabel(new Date(t), activeTab), x })
-      t += intervalMs
-    }
-    const lastX = ((maxTime - minTime) / timeRange) * 900
-    const lastLabel = getLabel(new Date(maxTime), activeTab)
-    if (monthLabels.length === 0 || lastX - monthLabels[monthLabels.length - 1].x > (900 / 10)) {
-      monthLabels.push({ label: lastLabel, x: lastX })
-    }
-  }
-
-  // Pie segments (r=70, cx=cy=80, SVG 160×160)
-  const pieSegments = summary ? (() => {
-    const { breakdown: b } = summary
-    const totalNW = summary.totalNetWorth || 1
-
-    // Sort custom classes by value, top 3 get own slices, rest grouped
-    const allCustom = [...(b.customClasses ?? [])].sort((a, c) => c.value - a.value)
-    const topCustom = allCustom.slice(0, 3)
-    const otherCustomVal = allCustom.slice(3).reduce((s, c) => s + c.value, 0)
-
-    const segs = [
-      { label: 'Stocks',        val: b.stocks.value,          color: 'var(--color-asset-stocks)' },
-      { label: 'Mutual Funds',  val: b.mf.value,              color: 'var(--color-asset-mf)'     },
-      { label: 'EPF',           val: b.epf.value,             color: 'var(--color-asset-epf)'    },
-      { label: 'FDs & RDs',     val: b.fd.value + b.rd.value, color: 'var(--color-asset-fdrd)'   },
-      { label: 'International', val: b.usStocks.value,        color: 'var(--color-asset-us)'     },
-      ...topCustom.map((c, i) => ({ label: c.name, val: c.value, color: `var(--color-asset-custom-${i + 1})` })),
-      ...(otherCustomVal > 0 ? [{ label: 'Other', val: otherCustomVal, color: 'var(--color-asset-other)' }] : []),
-    ].filter(s => s.val > 0)
-
-    const cx = 80, cy = 80, r = 70
-    let angle = -Math.PI / 2
-    return segs.map(s => {
-      const pct   = (s.val / totalNW) * 100
-      const sweep = (pct / 100) * 2 * Math.PI
-      const sx = cx + r * Math.cos(angle)
-      const sy = cy + r * Math.sin(angle)
-      angle += sweep
-      const ex = cx + r * Math.cos(angle)
-      const ey = cy + r * Math.sin(angle)
-      const largeArc = sweep > Math.PI ? 1 : 0
-      const path = `M ${cx},${cy} L ${sx.toFixed(2)},${sy.toFixed(2)} A ${r},${r} 0 ${largeArc},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`
-      return { ...s, pct, pctStr: `${Math.round(pct)}%`, valStr: formatShort(s.val), path, show: pct > 0.5 }
-    })
-  })() : null
-
-  // Treemap segments sorted by pct (largest first, zero-pct filtered out)
-  const treemapSegments = summary?.riskProfile ? (() => {
-    const rp = summary.riskProfile
-    const DEFS = [
-      { key: 'equity'        as const, label: 'EQUITY', bg: 'var(--color-treemap-equity-bg)', textColor: 'var(--color-treemap-equity-text)', labelColor: 'var(--color-treemap-equity-text)' },
-      { key: 'debt'          as const, label: 'DEBT',   bg: 'var(--color-treemap-debt-bg)',   textColor: 'var(--color-treemap-debt-text)',   labelColor: 'var(--color-treemap-debt-text)'   },
-      { key: 'gold'          as const, label: 'GOLD',   bg: 'var(--color-treemap-gold-bg)',   textColor: 'var(--color-treemap-gold-text)',   labelColor: 'var(--color-treemap-gold-text)'   },
-      { key: 'international' as const, label: 'INTL',   bg: 'var(--color-treemap-intl-bg)',   textColor: 'var(--color-treemap-intl-text)',   labelColor: 'var(--color-treemap-intl-text)'   },
-    ]
-    return DEFS
-      .map(d => ({ ...d, pct: rp[d.key].pct, value: rp[d.key].value }))
-      .filter(s => s.pct > 0)
-      .sort((a, b) => b.pct - a.pct)
-  })() : null
-
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* ── ROW 1: Header ── */}
+      {/* ── Header ── */}
       <div className="dashboard-header-row" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.8px', marginBottom: '4px' }}>
@@ -433,7 +127,7 @@ export default function DashboardPage() {
               <span className="dashboard-header-gain" style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                 background: isPositive ? '#F0FDF6' : 'var(--color-loss-subtle)',
-                color: isPositive ? '#15803D' : 'var(--color-loss)',
+                color:      isPositive ? '#15803D' : 'var(--color-loss)',
                 borderRadius: '20px', padding: '3px 10px', fontSize: '12px', fontWeight: 500,
               }}>
                 <TrendingUp size={11} />
@@ -467,6 +161,25 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Error banner */}
+      {fetchError && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          background: '#FFF5F5', border: '0.5px solid #FECDD3', color: '#DC2626',
+          padding: '10px 14px', borderRadius: '8px', fontSize: '13px',
+          marginBottom: '12px',
+        }}>
+          <AlertCircle size={15} />
+          <span>{fetchError}</span>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#DC2626', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Snapshot success strip */}
       {snapshotToast && (
         <div style={{
@@ -478,572 +191,34 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── ROW 2: Net worth trend card ── */}
-      <div className="dashboard-card" style={{ ...card, padding: '20px 24px', marginBottom: '14px', animationDelay: '60ms' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div>
-            <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '3px' }}>
-              Net Worth Trend
-            </div>
-            <div style={{ fontSize: '13px' }}>
-              {hasChart && snapshots ? (
-                <>
-                  <strong style={{ color: 'var(--color-text-primary)' }}>
-                    {formatINR(snapshots.chartData[snapshots.chartData.length - 1].totalNetWorth)}
-                  </strong>
-                  <span style={{ color: 'var(--color-text-muted)' }}> · </span>
-                  <span style={{ color: snapshots.changePct >= 0 ? 'var(--color-gain)' : 'var(--color-loss)' }}>
-                    {snapshots.changePct >= 0 ? '+' : ''}{snapshots.changePct.toFixed(1)}% since first snapshot
-                  </span>
-                </>
-              ) : (
-                <span style={{ color: 'var(--color-text-muted)' }}>Take a snapshot to start tracking</span>
-              )}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div
-              onClick={() => setShowInvested(prev => !prev)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                fontSize: '11px', padding: '3px 8px', borderRadius: '20px',
-                border: '0.5px solid var(--color-border)',
-                background: 'var(--color-surface-raised)',
-                color: 'var(--color-text-muted)',
-                cursor: 'pointer', userSelect: 'none',
-                opacity: showInvested ? 1 : 0.45,
-              }}
-            >
-              <span style={{ display: 'inline-block', width: '14px', height: '0px', borderTop: '1.5px dashed var(--color-text-muted)' }} />
-              Invested{' '}
-              <span style={{ color: 'var(--color-text-muted)' }}>{showInvested ? '· on' : '· off'}</span>
-            </div>
-            <div style={{ display: 'flex', background: 'var(--color-bg)', borderRadius: '6px', padding: '3px' }}>
-              {(['1M', '6M', '1Y', '5Y'] as TabKey[]).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  style={{
-                    padding: '4px 11px', borderRadius: '4px', fontSize: '11.5px',
-                    fontFamily: 'inherit', border: 'none', cursor: 'pointer',
-                    color: activeTab === t ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-                    background: activeTab === t ? 'var(--color-surface)' : 'transparent',
-                    boxShadow: activeTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease',
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* Net worth trend */}
+      <NetWorthTrendCard
+        snapshots={snapshots}
+        activeTab={activeTab}
+        takingSnapshot={takingSnapshot}
+        onTabChange={setActiveTab}
+        onSnapshot={handleSnapshot}
+      />
 
-        {!hasChart ? (
-          <div style={{ height: '130px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <Camera size={32} color="var(--color-text-muted)" />
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 500 }}>No snapshot history yet</div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '280px', textAlign: 'center' }}>
-              Take your first snapshot to start tracking your net worth over time
-            </div>
-            <button
-              onClick={handleSnapshot}
-              disabled={takingSnapshot}
-              style={{ marginTop: '4px', padding: '5px 14px', borderRadius: '6px', border: '0.5px solid var(--btn-ghost-border)', background: 'transparent', color: 'var(--btn-ghost-text)', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              {takingSnapshot ? 'Saving…' : 'Take snapshot'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ position: 'relative' }}>
-            {hoveredPoint && (
-              <div style={{
-                position: 'absolute', top: 8,
-                left: `${(hoveredPoint.x / 900) * 100}%`,
-                transform: hoveredPoint.pct < 0.2
-                  ? 'translateX(8px)'
-                  : hoveredPoint.pct > 0.8
-                    ? 'translateX(calc(-100% - 8px))'
-                    : 'translateX(-50%)',
-                background: 'var(--color-text-primary)',
-                color: 'var(--color-surface)',
-                borderRadius: 7, padding: '6px 11px',
-                fontSize: 12, pointerEvents: 'none', zIndex: 10,
-                fontFamily: 'DM Sans,sans-serif',
-                transition: 'left 60ms ease',
-              }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{formatINR(hoveredPoint.value)}</div>
-                {showInvested && (
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    Invested {formatINR(hoveredPoint.investedValue)}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>
-                  {hoveredPoint.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })}
-                </div>
-              </div>
-            )}
-            <svg viewBox="0 0 900 160" preserveAspectRatio="none" style={{ width: '100%', height: '160px', display: 'block' }}>
-              <defs>
-                <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor="var(--chart-line)" stopOpacity={0.06} />
-                  <stop offset="100%" stopColor="var(--chart-line)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <path d={fillD} fill="var(--chart-line)" fillOpacity={0.06} stroke="none" />
-              {showInvested && <path d={investedPathD} fill="none" stroke="var(--color-text-muted)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.5} />}
-              <path d={pathD} fill="none" stroke="var(--chart-line)" strokeWidth={1.5} strokeLinecap="round" />
-              <circle cx={lastPt.x} cy={lastPt.y} r={3.5} fill="var(--chart-line)" />
-              <circle cx={lastPt.x} cy={lastPt.y} r={7}   fill="var(--chart-line)" fillOpacity={0.1} />
-              {hoveredPoint && (
-                <>
-                  <line x1={hoveredPoint.x} y1={0} x2={hoveredPoint.x} y2={160} stroke="var(--color-text-muted)" strokeDasharray="3 3" strokeWidth={1} />
-                  <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r={4} fill="var(--color-text-primary)" />
-                </>
-              )}
-              <rect x="0" y="0" width="900" height="160" fill="transparent"
-                onMouseMove={(e) => {
-                  const svg = e.currentTarget.closest('svg')
-                  if (!svg || !snapshots?.chartData?.length) return
-                  const rect = svg.getBoundingClientRect()
-                  const pct = (e.clientX - rect.left) / rect.width
-                  const data = snapshots.chartData
-                  const cursorTime = chartMinTime + pct * chartTimeRange
-                  const idx = chartTimes.reduce((best, t, i) =>
-                    Math.abs(t - cursorTime) < Math.abs(chartTimes[best] - cursorTime) ? i : best, 0)
-                  const snap = data[idx]
-                  if (!snap) return
-                  const allVals = [...data.map(s => s.totalNetWorth), ...data.map(s => s.investedValue)]
-                  const min = Math.min(...allVals)
-                  const max = Math.max(...allVals)
-                  const range = max - min || 1
-                  const xPos = data.length === 1 ? 450 : ((chartTimes[idx] - chartMinTime) / chartTimeRange) * 900
-                  setHoveredPoint({
-                    x: xPos,
-                    y: 150 - ((snap.totalNetWorth - min) / range) * 130,
-                    value: snap.totalNetWorth,
-                    investedValue: snap.investedValue,
-                    date: new Date(snap.date + 'T00:00:00'),
-                    pct,
-                  })
-                }}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            </svg>
-            <div style={{ position: 'relative', height: '16px', marginTop: '6px' }}>
-              {monthLabels.map((m, i) => (
-                <span
-                  key={i}
-                  style={{
-                    position: 'absolute',
-                    left: `${(m.x / 900) * 100}%`,
-                    transform: 'translateX(-50%)',
-                    fontSize: '10px',
-                    color: '#C8C4B8',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {m.label}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── ROW 3: Allocation + Treemap ── */}
+      {/* Allocation + Treemap */}
       {(vis.allocationCard || vis.treemapCard) && (
         <div className="dashboard-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-
-          {vis.allocationCard && (
-            <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '120ms' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
-                Asset Allocation
-              </div>
-              {loading || !pieSegments ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  <div style={{ ...SK, width: 160, height: 160, borderRadius: '50%', flexShrink: 0 }} />
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px' }}>
-                    {[1, 2, 3, 4, 5].map(i => <div key={i} style={{ ...SK, height: 13, width: '80%' }} />)}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-                  {/* Pie chart: r=70, cx=cy=80, SVG 160×160 */}
-                  <svg className="pie-chart-svg" width={160} height={160} viewBox="0 0 160 160" style={{ flexShrink: 0 }}>
-                    {pieSegments.filter(s => s.show).map(s => (
-                      <path
-                        key={s.label}
-                        d={s.path}
-                        onMouseEnter={() => setHoveredSegment(s.label)}
-                        onMouseLeave={() => setHoveredSegment(null)}
-                        style={{
-                          fill: s.color,
-                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.3 : 1,
-                          transform: hoveredSegment === s.label ? 'scale(1.08)' : 'scale(1)',
-                          transformOrigin: '80px 80px',
-                          transition: 'opacity 160ms ease, transform 160ms ease',
-                          cursor: 'pointer',
-                        }}
-                      />
-                    ))}
-                  </svg>
-                  <div className="pie-chart-legend" style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1, minWidth: 0 }}>
-                    {pieSegments.map(s => (
-                      <div
-                        key={s.label}
-                        onMouseEnter={() => setHoveredSegment(s.label)}
-                        onMouseLeave={() => setHoveredSegment(null)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '7px',
-                          background: hoveredSegment === s.label ? 'var(--color-surface-raised)' : 'transparent',
-                          opacity: hoveredSegment && hoveredSegment !== s.label ? 0.5 : 1,
-                          borderRadius: 6, padding: '3px 6px', margin: '-3px -6px',
-                          transition: 'all 160ms ease', cursor: 'pointer',
-                        }}
-                      >
-                        <div style={{ width: 10, height: 10, borderRadius: '2px', background: s.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: '12.5px', color: '#555', flex: 1, minWidth: 0 }}>{s.label}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>{s.pctStr}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', width: '52px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{s.valStr}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {vis.treemapCard && (
-            <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '150ms' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.6px', marginBottom: '14px' }}>
-                Equity · Debt · Gold · Intl
-              </div>
-              {loading || !treemapSegments ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '68fr 32fr', gridTemplateRows: '1fr 1fr', gap: '5px', height: '168px' }}>
-                  <div style={{ ...SK, gridRow: '1 / 3', borderRadius: '9px' }} />
-                  <div style={{ ...SK, borderRadius: '9px' }} />
-                  <div style={{ ...SK, borderRadius: '9px' }} />
-                </div>
-              ) : treemapSegments.length === 0 ? (
-                <div style={{ height: '168px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  No data
-                </div>
-              ) : (() => {
-                const [dominant, ...rest] = treemapSegments
-                const domFs = dominant.pct >= 50 ? '32px' : dominant.pct >= 25 ? '26px' : '20px'
-                return (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: rest.length === 0 ? '1fr' : `${dominant.pct}fr ${100 - dominant.pct}fr`,
-                    gap: '5px',
-                    height: '168px',
-                  }}>
-                    {/* Dominant block — left, full height */}
-                    <div className="treemap-block" style={{ background: dominant.bg, borderRadius: '9px', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '10px', color: dominant.labelColor, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{dominant.label}</span>
-                      <div>
-                        <div className="treemap-pct" style={{ fontSize: domFs, fontWeight: 700, color: dominant.textColor, letterSpacing: '-1px', lineHeight: 1 }}>{dominant.pct}%</div>
-                        <div style={{ fontSize: '12px', color: dominant.labelColor, marginTop: '4px' }}>{formatShort(dominant.value)}</div>
-                      </div>
-                    </div>
-                    {/* Right column */}
-                    {rest.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {rest.length <= 2 ? (
-                          rest.map(s => {
-                            const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
-                            return (
-                              <div key={s.key} style={{ flex: 1, background: s.bg, borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                <span style={{ fontSize: '9.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
-                                <div>
-                                  <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
-                                  <div style={{ fontSize: '10px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
-                                </div>
-                              </div>
-                            )
-                          })
-                        ) : (
-                          <>
-                            {rest.slice(0, 1).map(s => {
-                              const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
-                              return (
-                                <div key={s.key} style={{ flex: 1, background: s.bg, borderRadius: '9px', padding: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                  <span style={{ fontSize: '9.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
-                                  <div>
-                                    <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
-                                    <div style={{ fontSize: '10px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-                              {rest.slice(1).map(s => {
-                                const fs = s.pct >= 20 ? '20px' : s.pct >= 10 ? '16px' : '13px'
-                                return (
-                                  <div key={s.key} style={{ background: s.bg, borderRadius: '9px', padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '8.5px', color: s.labelColor, textTransform: 'uppercase' }}>{s.label}</span>
-                                    <div>
-                                      <div style={{ fontSize: fs, fontWeight: 700, color: s.textColor, lineHeight: 1 }}>{s.pct}%</div>
-                                      <div style={{ fontSize: '9px', color: s.labelColor, marginTop: '1px' }}>{formatShort(s.value)}</div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
-          )}
+          {vis.allocationCard && <AllocationCard summary={summary} loading={loading} />}
+          {vis.treemapCard    && <TreemapCard    summary={summary} loading={loading} />}
         </div>
       )}
 
-      {/* ── ROW 4: Performers ── */}
-      {vis.performersCard && (
-        <div className="dashboard-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+      {/* Performers */}
+      {vis.performersCard && <PerformersCard performers={performers} loading={loading} />}
 
-          <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '210ms' }}>
-            <div style={TITLE_STYLE}>Top Performers</div>
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: 36, borderRadius: '8px' }} />)}
-              </div>
-            ) : !performers?.gainers?.length ? (
-              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0' }}>
-                No positive performers yet
-              </div>
-            ) : (
-              <div>
-                {performers.gainers.map((g, i) => (
-                  <div key={g.ticker} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: i < performers.gainers.length - 1 ? '0.5px solid var(--color-border-subtle)' : 'none' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'var(--color-surface-raised)', fontSize: '8.5px', fontWeight: 700, color: '#555', overflow: 'hidden', padding: '0 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                      {g.ticker}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {g.name.length > 25 ? g.name.slice(0, 25) + '…' : g.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{g.assetClass}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-gain)', fontVariantNumeric: 'tabular-nums' }}>+{g.gainLossPct.toFixed(2)}%</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px', fontVariantNumeric: 'tabular-nums' }}>{formatShort(g.currentValue)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Upcoming events */}
+      {vis.eventsCard && <UpcomingEventsCard upcoming={upcoming} loading={loading} />}
 
-          <div className="dashboard-card" style={{ ...card, padding: '18px 22px', animationDelay: '240ms' }}>
-            <div style={TITLE_STYLE}>Underperformers</div>
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {[1, 2, 3].map(i => <div key={i} style={{ ...SK, height: 36, borderRadius: '8px' }} />)}
-              </div>
-            ) : !performers?.losers?.length ? (
-              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0' }}>
-                No underperformers
-              </div>
-            ) : (
-              <div>
-                {performers.losers.map((p, i) => (
-                  <div key={p.ticker} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: i < performers.losers.length - 1 ? '0.5px solid var(--color-border-subtle)' : 'none' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'var(--color-surface-raised)', fontSize: '8.5px', fontWeight: 700, color: '#555', overflow: 'hidden', padding: '0 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                      {p.ticker}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.name.length > 25 ? p.name.slice(0, 25) + '…' : p.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>{p.assetClass}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-loss)', fontVariantNumeric: 'tabular-nums' }}>{p.gainLossPct.toFixed(2)}%</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px', fontVariantNumeric: 'tabular-nums' }}>{formatShort(p.currentValue)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Milestones */}
+      {vis.milestonesCard && <MilestonesCard milestones={milestones} loading={loading} />}
 
-      {/* ── ROW 6: Upcoming events ── */}
-      {vis.eventsCard && (
-        <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '14px', animationDelay: '270ms' }}>
-          <div style={TITLE_STYLE}>Upcoming</div>
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {[1, 2, 3, 4].map(i => <div key={i} style={{ ...SK, height: 36, borderRadius: '8px' }} />)}
-            </div>
-          ) : !upcoming?.events?.length ? (
-            <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', padding: '20px 0' }}>
-              No upcoming events in the next 90 days
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {upcoming.events.slice(0, 6).map((ev) => {
-                const isUrgent = ev.urgency === 'HIGH'
-                const dot      = eventDotColor(ev)
-                const typeText = eventTypeLabel(ev)
-                const evDate   = new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                return (
-                  <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '9px', background: isUrgent ? '#FFF5F5' : 'var(--color-surface-raised)', border: `0.5px solid ${isUrgent ? '#FECDD3' : 'var(--color-border)'}` }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {ev.label}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
-                        {typeText}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: isUrgent ? '#DC2626' : 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                        {formatINR(ev.amount)}
-                      </div>
-                      <div style={{ fontSize: '11px', color: isUrgent ? '#DC2626' : 'var(--color-text-muted)', marginTop: '1px', fontVariantNumeric: 'tabular-nums' }}>
-                        {evDate}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── ROW 7: Milestones ── */}
-      {vis.milestonesCard && (
-        <div className="dashboard-card" style={{ ...card, padding: '18px 22px', marginBottom: '0', animationDelay: '300ms' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ ...TITLE_STYLE, marginBottom: 0 }}>Milestones</div>
-            <button
-              onClick={() => router.push('/reports?section=milestones')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontFamily: 'inherit' }}
-            >
-              <Plus size={13} color="var(--color-text-muted)" />
-              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Add goal</span>
-            </button>
-          </div>
-
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[1, 2].map(i => (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ ...SK, height: 14, width: '55%' }} />
-                  <div style={{ ...SK, height: 5, borderRadius: '3px' }} />
-                </div>
-              ))}
-            </div>
-          ) : milestones.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-              <Flag size={24} color="var(--color-text-muted)" />
-              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                No goals set ·{' '}
-                <button
-                  onClick={() => router.push('/settings')}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: '13px', fontFamily: 'inherit', textDecoration: 'underline' }}
-                >
-                  Add milestones in Settings
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {milestones.map(m => {
-                const sub = m.isAchieved
-                  ? `Achieved · ${formatMilestoneDate(m.achievedDate)}`
-                  : m.progressPct > 0
-                    ? `${formatShort(m.amountAway)} away · ${m.progressPct}% there`
-                    : 'Not started yet'
-                return (
-                  <div key={m.id}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, background: m.isAchieved ? 'var(--color-text-primary)' : 'var(--color-surface-raised)', border: m.isAchieved ? 'none' : '0.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {m.isAchieved
-                            ? <Check size={11} color="var(--btn-primary-text)" strokeWidth={2.5} />
-                            : <Flag  size={11} color="var(--color-text-muted)" />}
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.title}</div>
-                          <div className={m.isAchieved ? 'milestone-text-achieved' : 'milestone-text-progress'} style={{ fontSize: '11px', marginTop: '1px' }}>{sub}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0, marginLeft: '16px', fontVariantNumeric: 'tabular-nums' }}>
-                        {formatShort(m.targetAmount)}
-                      </div>
-                    </div>
-                    <div style={{ height: '4px', background: 'var(--color-surface-raised)', borderRadius: '2px', overflow: 'hidden' }}>
-                      <div className={m.isAchieved ? 'milestone-bar-achieved' : 'milestone-bar-progress'} style={{ height: '100%', width: `${m.progressPct}%`, borderRadius: '2px', transition: 'width 600ms ease' }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Customise modal ── */}
-      {modal && (
-        <div
-          onClick={e => { if (e.target === e.currentTarget) setModal(false) }}
-          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--overlay-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--color-bg)', borderRadius: '12px', width: '100%', maxWidth: '360px', boxShadow: 'var(--shadow-lg)', overflow: 'hidden' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '0.5px solid var(--color-border)' }}>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Customise dashboard</div>
-              <button onClick={() => setModal(false)} style={{ padding: '4px', color: 'var(--color-text-muted)', borderRadius: '6px', lineHeight: 0, background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={16} />
-              </button>
-            </div>
-            <div style={{ padding: '6px 0' }}>
-              {TOGGLES.map(item => {
-                const on = vis[item.key]
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => toggleCard(item.key)}
-                    disabled={item.locked}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 20px 11px 16px', background: 'none', border: 'none', borderRight: on ? '3px solid var(--color-text-primary)' : '3px solid transparent', cursor: item.locked ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'border-color 160ms ease' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: on ? 'var(--color-text-primary)' : 'transparent', border: on ? 'none' : '1.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 160ms ease, border-color 160ms ease' }}>
-                        {on && <Check size={10} color="var(--color-surface)" strokeWidth={3} />}
-                      </div>
-                      <span style={{ fontSize: '13.5px', color: 'var(--color-text-primary)', textAlign: 'left' }}>{item.label}</span>
-                    </div>
-                    {item.locked && (
-                      <span style={{ fontSize: '10.5px', color: 'var(--color-text-muted)' }}>Always on</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-            <div style={{ padding: '12px 20px', borderTop: '0.5px solid var(--color-border)' }}>
-              <button
-                onClick={() => setModal(false)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-text)', fontSize: '13px', fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Customise modal */}
+      {modal && <CustomiseModal vis={vis} onToggle={toggleCard} onClose={() => setModal(false)} />}
     </>
   )
 }

@@ -96,53 +96,55 @@ export async function PUT(request: Request, { params }: Ctx) {
       const submittedAvgNav        = typeof body.avgNav === 'number'        ? body.avgNav        : existing.avgNav
       const submittedInvestedValue = typeof body.investedValue === 'number' ? body.investedValue : existing.investedValue
 
-      // Step 1: remove any existing CORRECTION so it doesn't affect the organic baseline
-      await prisma.mutualFundTransaction.deleteMany({ where: { fundId: id, type: 'CORRECTION' } })
+      fund = await prisma.$transaction(async (tx) => {
+        // Step 1: remove any existing CORRECTION so it doesn't affect the organic baseline
+        await tx.mutualFundTransaction.deleteMany({ where: { fundId: id, type: 'CORRECTION' } })
 
-      // Step 2: compute organic totals from all real transactions
-      const organicTxns = await prisma.mutualFundTransaction.findMany({
-        where:  { fundId: id },
-        select: { type: true, units: true, nav: true, amount: true },
-      })
-      const organic = recalcFund(organicTxns)
+        // Step 2: compute organic totals from all real transactions
+        const organicTxns = await tx.mutualFundTransaction.findMany({
+          where:  { fundId: id },
+          select: { type: true, units: true, nav: true, amount: true },
+        })
+        const organic = recalcFund(organicTxns)
 
-      // Step 3: delta between what the user wants and what transactions alone produce
-      const deltaUnits         = submittedUnits         - organic.units
-      const deltaInvestedValue = submittedInvestedValue - organic.investedValue
+        // Step 3: delta between what the user wants and what transactions alone produce
+        const deltaUnits         = submittedUnits         - organic.units
+        const deltaInvestedValue = submittedInvestedValue - organic.investedValue
 
-      // Step 4: create a CORRECTION transaction if either dimension differs
-      if (Math.abs(deltaInvestedValue) > 0.001 || Math.abs(deltaUnits) > 0.0001) {
-        await prisma.mutualFundTransaction.create({
+        // Step 4: create a CORRECTION transaction if either dimension differs
+        if (Math.abs(deltaInvestedValue) > 0.001 || Math.abs(deltaUnits) > 0.0001) {
+          await tx.mutualFundTransaction.create({
+            data: {
+              fundId:      id,
+              date:        new Date(),
+              type:        'CORRECTION',
+              units:       deltaUnits,
+              nav:         submittedAvgNav > 0 ? submittedAvgNav : 1,
+              amount:      deltaInvestedValue,
+              autoCreated: true,
+            },
+          })
+        }
+
+        // Step 5: recompute from ALL transactions (organic + CORRECTION if created)
+        const allTxns = await tx.mutualFundTransaction.findMany({
+          where:  { fundId: id },
+          select: { type: true, units: true, nav: true, amount: true },
+        })
+        const metrics  = recalcFund(allTxns)
+        const safeUnits = Math.max(0, metrics.units)
+        const currentValue = safeUnits * (existing.currentNav > 0 ? existing.currentNav : (metrics.avgNav > 0 ? metrics.avgNav : submittedAvgNav))
+
+        return tx.mutualFund.update({
+          where: { id },
           data: {
-            fundId:      id,
-            date:        new Date(),
-            type:        'CORRECTION',
-            units:       deltaUnits,
-            nav:         submittedAvgNav > 0 ? submittedAvgNav : 1,
-            amount:      deltaInvestedValue,
-            autoCreated: true,
+            ...metaData,
+            units:         safeUnits,
+            avgNav:        metrics.avgNav > 0 ? metrics.avgNav : (submittedAvgNav > 0 ? submittedAvgNav : existing.avgNav),
+            investedValue: Math.max(0, metrics.investedValue),
+            currentValue,
           },
         })
-      }
-
-      // Step 5: recompute from ALL transactions (organic + CORRECTION if created)
-      const allTxns = await prisma.mutualFundTransaction.findMany({
-        where:  { fundId: id },
-        select: { type: true, units: true, nav: true, amount: true },
-      })
-      const metrics  = recalcFund(allTxns)
-      const safeUnits = Math.max(0, metrics.units)
-      const currentValue = safeUnits * (existing.currentNav > 0 ? existing.currentNav : (metrics.avgNav > 0 ? metrics.avgNav : submittedAvgNav))
-
-      fund = await prisma.mutualFund.update({
-        where: { id },
-        data: {
-          ...metaData,
-          units:         safeUnits,
-          avgNav:        metrics.avgNav > 0 ? metrics.avgNav : (submittedAvgNav > 0 ? submittedAvgNav : existing.avgNav),
-          investedValue: Math.max(0, metrics.investedValue),
-          currentValue,
-        },
       })
     } else {
       // NAV-only or metadata-only edit — apply directly, no transaction involvement

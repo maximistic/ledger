@@ -62,7 +62,12 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(employerMonthly) || employerMonthly <= 0)
       return NextResponse.json({ error: 'employerMonthly must be > 0' }, { status: 400 })
 
+    // Single-account guard: this app supports exactly one EPF account per user.
     const existing = await prisma.ePFAccount.findFirst()
+    const total    = await prisma.ePFAccount.count()
+    if (existing && total > 1) {
+      return NextResponse.json({ error: 'Unexpected state: multiple EPF accounts found' }, { status: 500 })
+    }
 
     const data = {
       uan:               body.uan?.trim()          || null,
@@ -117,12 +122,36 @@ export async function PUT(request: NextRequest) {
     if (body.dateOfBirth   !== undefined) patch.dateOfBirth   = body.dateOfBirth   ? new Date(String(body.dateOfBirth))   : null
     if (body.trackingStartDate !== undefined) patch.trackingStartDate = body.trackingStartDate ? new Date(String(body.trackingStartDate)) : null
     if (body.trackingStatus    !== undefined) patch.trackingStatus    = String(body.trackingStatus)
-    if (body.employeeBalance   !== undefined) patch.employeeBalance   = parseFloat(String(body.employeeBalance))
-    if (body.employerBalance   !== undefined) patch.employerBalance   = parseFloat(String(body.employerBalance))
-    if (body.pensionBalance    !== undefined) patch.pensionBalance    = parseFloat(String(body.pensionBalance))
-    if (body.employeeMonthly   !== undefined) patch.employeeMonthly   = parseFloat(String(body.employeeMonthly))
-    if (body.employerMonthly   !== undefined) patch.employerMonthly   = parseFloat(String(body.employerMonthly))
-    if (body.dayOfMonth        !== undefined) patch.dayOfMonth        = parseInt(String(body.dayOfMonth))
+    if (body.employeeBalance !== undefined) {
+      const v = parseFloat(String(body.employeeBalance))
+      if (!Number.isFinite(v) || v < 0) return NextResponse.json({ error: 'employeeBalance must be >= 0' }, { status: 400 })
+      patch.employeeBalance = v
+    }
+    if (body.employerBalance !== undefined) {
+      const v = parseFloat(String(body.employerBalance))
+      if (!Number.isFinite(v) || v < 0) return NextResponse.json({ error: 'employerBalance must be >= 0' }, { status: 400 })
+      patch.employerBalance = v
+    }
+    if (body.pensionBalance !== undefined) {
+      const v = parseFloat(String(body.pensionBalance))
+      if (!Number.isFinite(v) || v < 0) return NextResponse.json({ error: 'pensionBalance must be >= 0' }, { status: 400 })
+      patch.pensionBalance = v
+    }
+    if (body.employeeMonthly !== undefined) {
+      const v = parseFloat(String(body.employeeMonthly))
+      if (!Number.isFinite(v) || v <= 0) return NextResponse.json({ error: 'employeeMonthly must be > 0' }, { status: 400 })
+      patch.employeeMonthly = v
+    }
+    if (body.employerMonthly !== undefined) {
+      const v = parseFloat(String(body.employerMonthly))
+      if (!Number.isFinite(v) || v <= 0) return NextResponse.json({ error: 'employerMonthly must be > 0' }, { status: 400 })
+      patch.employerMonthly = v
+    }
+    if (body.dayOfMonth !== undefined) {
+      const v = parseInt(String(body.dayOfMonth))
+      if (!Number.isFinite(v) || v < 1 || v > 28) return NextResponse.json({ error: 'dayOfMonth must be 1–28' }, { status: 400 })
+      patch.dayOfMonth = v
+    }
 
     const account = await prisma.ePFAccount.update({ where: { id: existing.id }, data: patch })
     return NextResponse.json({ account })

@@ -52,15 +52,9 @@ export async function POST() {
 
           if (!nav || nav <= 0) {
             nav = await fetchNavFromMfapi(fund.amfiCode!)
-            if (nav > 0) {
-              console.log(`[NAV refresh] mfapi fallback for ${fund.name}: ${nav}`)
-            }
-          } else {
-            console.log(`[NAV refresh] Yahoo NAV for ${fund.name}: ${nav}`)
           }
 
           if (!nav || nav <= 0) {
-            console.log(`[NAV refresh] No NAV found for ${fund.name}`)
             failed++
             return
           }
@@ -69,7 +63,6 @@ export async function POST() {
           if (fund.avgNav > 0) {
             const deviation = Math.abs(nav - fund.avgNav) / fund.avgNav
             if (deviation > 0.6) {
-              console.warn(`[NAV refresh] Skipped ${fund.name} — deviation ${(deviation * 100).toFixed(1)}%`)
               skipped++
               return
             }

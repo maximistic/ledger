@@ -9,6 +9,13 @@ const BUY_TYPES   = new Set(['SIP', 'LUMPSUM', 'SWITCH_IN', 'DIVIDEND', 'CORRECT
 const SELL_TYPES  = new Set(['REDEMPTION', 'SWITCH_OUT'])
 const VALID_TYPES = new Set([...BUY_TYPES, ...SELL_TYPES])
 
+class ValidationError extends Error {
+  constructor(message: string) { super(message); this.name = 'ValidationError' }
+}
+
+// Module-level flag: migration runs once per server process, never on every request.
+let migrationDone = false
+
 function recalcFund(txns: Array<{ type: string; units: number; nav: number; amount: number }>) {
   const buys  = txns.filter(t => BUY_TYPES.has(t.type))
   const sells = txns.filter(t => SELL_TYPES.has(t.type))
@@ -45,23 +52,26 @@ export async function POST(request: Request, { params }: Ctx) {
     const { id } = await params
 
     // Migration guard: back-fill opening LUMPSUM for funds created before transaction-sourcing.
-    // The `transactions: { none: {} }` filter makes this a no-op once a fund has any transaction.
-    const unmigratedFunds = await prisma.mutualFund.findMany({
-      where: { investedValue: { gt: 0 }, transactions: { none: {} } },
-      select: { id: true, units: true, avgNav: true, investedValue: true, firstInvestmentDate: true },
-    })
-    if (unmigratedFunds.length > 0) {
-      await prisma.mutualFundTransaction.createMany({
-        data: unmigratedFunds.map(f => ({
-          fundId:      f.id,
-          date:        f.firstInvestmentDate ?? new Date(),
-          type:        'LUMPSUM',
-          units:       f.units,
-          nav:         f.avgNav > 0 ? f.avgNav : 1,
-          amount:      f.investedValue,
-          autoCreated: true,
-        })),
+    // Runs at most once per server process lifetime using a module-level flag.
+    if (!migrationDone) {
+      const unmigratedFunds = await prisma.mutualFund.findMany({
+        where: { investedValue: { gt: 0 }, transactions: { none: {} } },
+        select: { id: true, units: true, avgNav: true, investedValue: true, firstInvestmentDate: true },
       })
+      if (unmigratedFunds.length > 0) {
+        await prisma.mutualFundTransaction.createMany({
+          data: unmigratedFunds.map(f => ({
+            fundId:      f.id,
+            date:        f.firstInvestmentDate ?? new Date(),
+            type:        'LUMPSUM',
+            units:       f.units,
+            nav:         f.avgNav > 0 ? f.avgNav : 1,
+            amount:      f.investedValue,
+            autoCreated: true,
+          })),
+        })
+      }
+      migrationDone = true
     }
 
     const fund = await prisma.mutualFund.findUnique({ where: { id } })
@@ -91,50 +101,60 @@ export async function POST(request: Request, { params }: Ctx) {
     if (!Number.isFinite(txAmount) || txAmount <= 0)
       return NextResponse.json({ error: 'Amount must be > 0' }, { status: 400 })
 
-    // Duplicate check
+    // Duplicate check (outside transaction — read-only)
     const dupe = await prisma.mutualFundTransaction.findFirst({
       where: { fundId: id, date: txDate, type: txType, units: txUnits, nav: txNav },
     })
     if (dupe) return NextResponse.json({ error: 'Duplicate transaction' }, { status: 400 })
 
-    const transaction = await prisma.mutualFundTransaction.create({
-      data: {
-        fundId:      id,
-        date:        txDate,
-        type:        txType,
-        units:       txUnits,
-        nav:         txNav,
-        amount:      txAmount,
-        description: typeof body.description === 'string' ? body.description : null,
-        autoCreated: typeof body.autoCreated === 'boolean' ? body.autoCreated : false,
-      },
-    })
+    try {
+      const { transaction, updatedFund } = await prisma.$transaction(async (tx) => {
+        const transaction = await tx.mutualFundTransaction.create({
+          data: {
+            fundId:      id,
+            date:        txDate,
+            type:        txType,
+            units:       txUnits,
+            nav:         txNav,
+            amount:      txAmount,
+            description: typeof body.description === 'string' ? body.description : null,
+            autoCreated: typeof body.autoCreated === 'boolean' ? body.autoCreated : false,
+          },
+        })
 
-    // Recalculate fund metrics from all transactions
-    const allTxns = await prisma.mutualFundTransaction.findMany({
-      where: { fundId: id },
-      select: { type: true, units: true, nav: true, amount: true },
-    })
+        const allTxns = await tx.mutualFundTransaction.findMany({
+          where: { fundId: id },
+          select: { type: true, units: true, nav: true, amount: true },
+        })
 
-    const metrics = recalcFund(allTxns)
+        const metrics = recalcFund(allTxns)
 
-    if (metrics.units < -0.0001)
-      return NextResponse.json({ error: 'Transaction results in negative units' }, { status: 400 })
+        if (metrics.units < -0.0001) {
+          throw new ValidationError('Transaction results in negative units')
+        }
 
-    const safeUnits = Math.max(0, metrics.units)
-    const currentValue = safeUnits * (fund.currentNav > 0 ? fund.currentNav : metrics.avgNav)
+        const safeUnits    = Math.max(0, metrics.units)
+        const currentValue = safeUnits * (fund.currentNav > 0 ? fund.currentNav : metrics.avgNav)
 
-    const updatedFund = await prisma.mutualFund.update({
-      where: { id },
-      data: {
-        units:        safeUnits,
-        avgNav:       metrics.avgNav > 0 ? metrics.avgNav : fund.avgNav,
-        investedValue: Math.max(0, metrics.investedValue),
-        currentValue,
-      },
-    })
+        const updatedFund = await tx.mutualFund.update({
+          where: { id },
+          data: {
+            units:         safeUnits,
+            avgNav:        metrics.avgNav > 0 ? metrics.avgNav : fund.avgNav,
+            investedValue: Math.max(0, metrics.investedValue),
+            currentValue,
+          },
+        })
 
-    return NextResponse.json({ transaction, fund: updatedFund }, { status: 201 })
+        return { transaction, updatedFund }
+      })
+
+      return NextResponse.json({ transaction, fund: updatedFund }, { status: 201 })
+    } catch (err) {
+      if (err instanceof ValidationError)
+        return NextResponse.json({ error: err.message }, { status: 400 })
+      throw err
+    }
   } catch (error) {
     console.error('[POST /api/mf/[id]/transactions]', error)
     return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 })

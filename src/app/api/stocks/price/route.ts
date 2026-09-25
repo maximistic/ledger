@@ -69,7 +69,6 @@ export async function POST() {
         // Skip if price deviates > 60% from avgPrice
         const deviation = Math.abs(price - stock.avgPrice) / stock.avgPrice
         if (deviation > 0.6) {
-          console.warn(`[price-refresh] ${stock.ticker}: price ${price} deviates ${(deviation * 100).toFixed(1)}% from avgPrice ${stock.avgPrice} — skipped`)
           skipped++
           results.push({ ticker: stock.ticker, status: 'skipped', price, reason: `${(deviation * 100).toFixed(1)}% deviation` })
           continue

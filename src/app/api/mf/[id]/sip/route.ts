@@ -59,21 +59,23 @@ export async function PUT(request: Request, { params }: Ctx) {
 
     const body = await request.json() as { amount?: unknown; dayOfMonth?: unknown; status?: unknown }
 
-    const sip = await prisma.sipConfig.update({
-      where: { fundId: id },
-      data: {
-        ...(typeof body.amount === 'number' ? { amount: body.amount } : {}),
-        ...(typeof body.dayOfMonth === 'number' ? { dayOfMonth: body.dayOfMonth } : {}),
-        ...(typeof body.status === 'string' ? { status: body.status } : {}),
-      },
-    })
-
-    if (typeof body.status === 'string') {
-      await prisma.mutualFund.update({
-        where: { id },
-        data: { hasActiveSip: body.status === 'ACTIVE' },
+    const sip = await prisma.$transaction(async (tx) => {
+      const updated = await tx.sipConfig.update({
+        where: { fundId: id },
+        data: {
+          ...(typeof body.amount === 'number' ? { amount: body.amount } : {}),
+          ...(typeof body.dayOfMonth === 'number' ? { dayOfMonth: body.dayOfMonth } : {}),
+          ...(typeof body.status === 'string' ? { status: body.status } : {}),
+        },
       })
-    }
+      if (typeof body.status === 'string') {
+        await tx.mutualFund.update({
+          where: { id },
+          data: { hasActiveSip: body.status === 'ACTIVE' },
+        })
+      }
+      return updated
+    })
 
     return NextResponse.json({ sip })
   } catch (error) {

@@ -49,8 +49,6 @@ export async function POST(request: Request) {
       firstInvestmentDate?: unknown; purchaseDate?: unknown; source?: unknown
     }
 
-    console.log('[POST /api/mf] body:', JSON.stringify(body))
-
     const name          = typeof body.name === 'string' ? body.name.trim() : ''
     const units         = parseFloat(String(body.units ?? ''))
     const avgNav        = parseFloat(String(body.avgNav ?? ''))
@@ -74,43 +72,46 @@ export async function POST(request: Request) {
     const str = (v: unknown) =>
       typeof v === 'string' && v.trim() ? v.trim() : null
 
-    const fund = await prisma.mutualFund.create({
-      data: {
-        name,
-        amfiCode:           str(body.amfiCode),
-        isin:               str(body.isin)?.toUpperCase() ?? null,
-        folioNumber:        str(body.folioNumber),
-        platform:           str(body.platform),
-        fundHouse:          str(body.fundHouse),
-        fundCategory:       str(body.fundCategory),
-        units,
-        avgNav,
-        currentNav:         avgNav,
-        investedValue,
-        currentValue:       units * avgNav,
-        firstInvestmentDate: firstDate,
-        source:             str(body.source) ?? 'MANUAL',
-      },
-    })
-
-    console.log('[POST /api/mf] created fund:', fund.id)
-
-    // Opening LUMPSUM — makes transactions the single source of truth for investedValue/units
     let txDate: Date = firstDate ?? new Date()
     if (typeof body.purchaseDate === 'string' && body.purchaseDate) {
       const d = new Date(body.purchaseDate)
       if (!isNaN(d.getTime())) txDate = d
     }
-    await prisma.mutualFundTransaction.create({
-      data: {
-        fundId:      fund.id,
-        date:        txDate,
-        type:        'LUMPSUM',
-        units,
-        nav:         avgNav,
-        amount:      investedValue,
-        autoCreated: true,
-      },
+
+    const fund = await prisma.$transaction(async (tx) => {
+      const created = await tx.mutualFund.create({
+        data: {
+          name,
+          amfiCode:           str(body.amfiCode),
+          isin:               str(body.isin)?.toUpperCase() ?? null,
+          folioNumber:        str(body.folioNumber),
+          platform:           str(body.platform),
+          fundHouse:          str(body.fundHouse),
+          fundCategory:       str(body.fundCategory),
+          units,
+          avgNav,
+          currentNav:         avgNav,
+          investedValue,
+          currentValue:       units * avgNav,
+          firstInvestmentDate: firstDate,
+          source:             str(body.source) ?? 'MANUAL',
+        },
+      })
+
+      // Opening LUMPSUM — makes transactions the single source of truth for investedValue/units
+      await tx.mutualFundTransaction.create({
+        data: {
+          fundId:      created.id,
+          date:        txDate,
+          type:        'LUMPSUM',
+          units,
+          nav:         avgNav,
+          amount:      investedValue,
+          autoCreated: true,
+        },
+      })
+
+      return created
     })
 
     if (fund.amfiCode) {

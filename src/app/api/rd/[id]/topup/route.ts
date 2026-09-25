@@ -4,10 +4,6 @@ import { calculateRDCurrentValue, calculateRDMaturityValue } from '@/lib/fdCalcu
 
 type Ctx = { params: Promise<{ id: string }> }
 
-function tenureMonthsBetween(start: Date, end: Date): number {
-  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
-}
-
 function apiError(error: unknown): string {
   const msg = error instanceof Error ? error.message : 'Unknown error'
   if (msg.includes('PrismaClient') || msg.length > 200) return 'Something went wrong. Please try again.'
@@ -38,38 +34,41 @@ export async function POST(request: Request, { params }: Ctx) {
     const topUpStart = new Date(body.startDate)
     if (isNaN(topUpStart.getTime())) return NextResponse.json({ error: 'Invalid startDate' }, { status: 400 })
 
-    const topUp = await prisma.rDTopUp.create({
-      data: {
-        rdId:        id,
-        amount:      body.amount,
-        startDate:   topUpStart,
-        isRecurring: typeof body.isRecurring === 'boolean' ? body.isRecurring : false,
-        notes:       typeof body.notes === 'string' ? body.notes : null,
-      },
-    })
+    const { topUp, updatedRd } = await prisma.$transaction(async (tx) => {
+      const topUp = await tx.rDTopUp.create({
+        data: {
+          rdId:        id,
+          amount:      body.amount as number,
+          startDate:   topUpStart,
+          isRecurring: typeof body.isRecurring === 'boolean' ? body.isRecurring : false,
+          notes:       typeof body.notes === 'string' ? body.notes : null,
+        },
+      })
 
-    // Recalculate with all topUps including the new one
-    const allTopUps = [...rd.topUps, topUp]
-    const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
-      monthlyAmount: rd.monthlyAmount,
-      annualRate:    rd.interestRate,
-      startDate:     rd.startDate,
-      dayOfMonth:    rd.dayOfMonth,
-      topUps:        allTopUps,
-    })
-    const maturityValue = calculateRDMaturityValue({
-      monthlyAmount: rd.monthlyAmount,
-      annualRate:    rd.interestRate,
-      startDate:     rd.startDate,
-      dayOfMonth:    rd.dayOfMonth,
-      topUps:        allTopUps,
-      maturityDate:  rd.maturityDate,
-    })
+      const allTopUps = [...rd.topUps, topUp]
+      const { currentValue, totalInvested, interestEarned } = calculateRDCurrentValue({
+        monthlyAmount: rd.monthlyAmount,
+        annualRate:    rd.interestRate,
+        startDate:     rd.startDate,
+        dayOfMonth:    rd.dayOfMonth,
+        topUps:        allTopUps,
+      })
+      const maturityValue = calculateRDMaturityValue({
+        monthlyAmount: rd.monthlyAmount,
+        annualRate:    rd.interestRate,
+        startDate:     rd.startDate,
+        dayOfMonth:    rd.dayOfMonth,
+        topUps:        allTopUps,
+        maturityDate:  rd.maturityDate,
+      })
 
-    const updatedRd = await prisma.rDAccount.update({
-      where:   { id },
-      data:    { currentValue, totalInvested, maturityValue, interestEarned },
-      include: { topUps: true },
+      const updatedRd = await tx.rDAccount.update({
+        where:   { id },
+        data:    { currentValue, totalInvested, maturityValue, interestEarned },
+        include: { topUps: true },
+      })
+
+      return { topUp, updatedRd }
     })
 
     return NextResponse.json({ topUp, rd: updatedRd }, { status: 201 })

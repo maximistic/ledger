@@ -54,38 +54,51 @@ export async function POST(request: Request, { params }: Ctx) {
     const amountUSD = quantity * priceUSD
     const amountINR = amountUSD * rate
 
-    // Duplicate check: stockId + date + type + quantity + priceUSD
-    const existingTxns = await prisma.uSStockTransaction.findMany({ where: { stockId: id } })
-    const txKey = (t: { date: Date; type: string; quantity: number; priceUSD: number }) =>
-      `${new Date(t.date).toISOString().slice(0, 10)}|${t.type}|${t.quantity}|${t.priceUSD}`
-    const newKey = `${parsedDate.toISOString().slice(0, 10)}|${type}|${quantity}|${priceUSD}`
-    if (existingTxns.some(t => txKey(t) === newKey)) {
-      return NextResponse.json({ error: 'This transaction already exists.' }, { status: 400 })
+    class ValidationError extends Error {}
+
+    let transaction: Awaited<ReturnType<typeof prisma.uSStockTransaction.create>>
+    let updatedStock: Awaited<ReturnType<typeof prisma.uSStock.update>>
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const existingTxns = await tx.uSStockTransaction.findMany({ where: { stockId: id } })
+        const txKey = (t: { date: Date; type: string; quantity: number; priceUSD: number }) =>
+          `${new Date(t.date).toISOString().slice(0, 10)}|${t.type}|${t.quantity}|${t.priceUSD}`
+        const newKey = `${parsedDate.toISOString().slice(0, 10)}|${type}|${quantity}|${priceUSD}`
+        if (existingTxns.some(t => txKey(t) === newKey)) {
+          throw new ValidationError('This transaction already exists.')
+        }
+
+        const created = await tx.uSStockTransaction.create({
+          data: { stockId: id, date: parsedDate, type, quantity, priceUSD, amountUSD, amountINR, exchangeRate: rate },
+        })
+
+        const allTransactions = await tx.uSStockTransaction.findMany({ where: { stockId: id } })
+        const metrics = calculateUSStockMetrics(allTransactions, stock.holdingsQuantity, stock.avgPriceUSD)
+
+        if (metrics.quantity < 0) throw new ValidationError('Insufficient shares')
+
+        const safeQty        = isFinite(metrics.quantity)     ? metrics.quantity     : 0
+        const safeAvgUSD     = isFinite(metrics.avgPriceUSD) && metrics.avgPriceUSD > 0
+          ? metrics.avgPriceUSD : stock.avgPriceUSD
+        const safeCurrentPx  = stock.currentPriceUSD > 0 ? stock.currentPriceUSD : safeAvgUSD
+        const investedValueINR = safeQty > 0 ? safeQty * safeAvgUSD * rate : 0
+        const currentValueINR  = safeQty * safeCurrentPx * rate
+
+        const updated = await tx.uSStock.update({
+          where: { id },
+          data:  { quantity: safeQty, avgPriceUSD: safeAvgUSD, investedValueINR, currentValueINR, exchangeRate: rate },
+        })
+
+        return { created, updated }
+      })
+      transaction = result.created
+      updatedStock = result.updated
+    } catch (err) {
+      if (err instanceof ValidationError)
+        return NextResponse.json({ error: err.message }, { status: 400 })
+      throw err
     }
-
-    const transaction = await prisma.uSStockTransaction.create({
-      data: { stockId: id, date: parsedDate, type, quantity, priceUSD, amountUSD, amountINR, exchangeRate: rate },
-    })
-
-    const allTransactions = await prisma.uSStockTransaction.findMany({ where: { stockId: id } })
-    const metrics = calculateUSStockMetrics(allTransactions, stock.holdingsQuantity, stock.avgPriceUSD)
-
-    if (metrics.quantity < 0) {
-      await prisma.uSStockTransaction.delete({ where: { id: transaction.id } })
-      return NextResponse.json({ error: 'Insufficient shares' }, { status: 400 })
-    }
-
-    const safeQty        = isFinite(metrics.quantity)     ? metrics.quantity     : 0
-    const safeAvgUSD     = isFinite(metrics.avgPriceUSD) && metrics.avgPriceUSD > 0
-      ? metrics.avgPriceUSD : stock.avgPriceUSD
-    const safeCurrentPx  = stock.currentPriceUSD > 0 ? stock.currentPriceUSD : safeAvgUSD
-    const investedValueINR = safeQty > 0 ? safeQty * safeAvgUSD * rate : 0
-    const currentValueINR  = safeQty * safeCurrentPx * rate
-
-    const updatedStock = await prisma.uSStock.update({
-      where: { id },
-      data:  { quantity: safeQty, avgPriceUSD: safeAvgUSD, investedValueINR, currentValueINR, exchangeRate: rate },
-    })
 
     return NextResponse.json({ transaction, stock: updatedStock }, { status: 201 })
   } catch (error) {

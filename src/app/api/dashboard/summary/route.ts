@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { computeNetWorthFromData } from '@/lib/netWorth'
 
 const ETF_CLASSIFICATIONS: Record<string, 'equity' | 'debt' | 'gold' | 'international'> = {
   // Gold ETFs
@@ -73,33 +74,10 @@ export async function GET() {
       prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
 
-    const stocksValue    = stocks.reduce((s, x) => s + x.currentValue, 0)
-    const stocksInvested = stocks.reduce((s, x) => s + x.investedValue, 0)
+    const nw = computeNetWorthFromData(stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses)
 
-    const mfValue    = mfs.reduce((s, x) => s + x.currentValue, 0)
-    const mfInvested = mfs.reduce((s, x) => s + x.investedValue, 0)
-
-    const epfTotal = epfAccounts.reduce(
-      (s, x) => s + x.employeeBalance + x.employerBalance + x.pensionBalance, 0
-    )
-
-    const fdValue    = fds.reduce((s, x) => s + x.currentValue, 0)
-    const fdInvested = fds.reduce((s, x) => s + x.principal, 0)
-
-    const rdValue    = rds.reduce((s, x) => s + x.currentValue, 0)
-    const rdInvested = rds.reduce((s, x) => s + x.totalInvested, 0)
-
-    const usTotal         = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
-    const usStocksInvested = usStocks.reduce((s, x) => s + x.investedValueINR, 0)
-
-    const customTotal = customClasses.reduce(
-      (sum, cls) => sum + cls.entries.reduce((s, e) => s + e.currentValue, 0), 0
-    )
-
-    const totalNetWorth = stocksValue + mfValue + epfTotal + fdValue + rdValue + usTotal + customTotal
-    const totalInvested = stocksInvested + mfInvested + epfTotal + fdInvested + rdInvested + usStocksInvested
-    const gainLoss      = totalNetWorth - totalInvested
-    const gainLossPct   = totalInvested > 0 ? (gainLoss / totalInvested) * 100 : 0
+    const gainLoss    = nw.totalNetWorth - nw.investedValue
+    const gainLossPct = nw.investedValue > 0 ? (gainLoss / nw.investedValue) * 100 : 0
 
     // ── Risk profile classification ──────────────────────────────────────────
     let equityValue        = 0
@@ -124,11 +102,10 @@ export async function GET() {
     }
 
     // EPF and FDs/RDs are always debt
-    debtValue += epfTotal + fdValue + rdValue
+    debtValue += nw.epfValue + nw.fdValue + nw.rdValue
     // US stocks are always international
-    internationalValue += usTotal
+    internationalValue += nw.usStocksValue
 
-    // Custom assets classified by class name
     for (const cls of customClasses) {
       const clsValue = cls.entries.reduce((s, e) => s + e.currentValue, 0)
       const bucket   = classifyCustom(cls.name)
@@ -139,20 +116,11 @@ export async function GET() {
     }
 
     const riskTotal = equityValue + debtValue + goldValue + internationalValue || 1
-
-    const allocation = {
-      stocks:   totalNetWorth > 0 ? (stocksValue  / totalNetWorth) * 100 : 0,
-      mf:       totalNetWorth > 0 ? (mfValue       / totalNetWorth) * 100 : 0,
-      epf:      totalNetWorth > 0 ? (epfTotal      / totalNetWorth) * 100 : 0,
-      fd:       totalNetWorth > 0 ? (fdValue       / totalNetWorth) * 100 : 0,
-      rd:       totalNetWorth > 0 ? (rdValue       / totalNetWorth) * 100 : 0,
-      usStocks: totalNetWorth > 0 ? (usTotal       / totalNetWorth) * 100 : 0,
-      custom:   totalNetWorth > 0 ? (customTotal   / totalNetWorth) * 100 : 0,
-    }
+    const tnw       = nw.totalNetWorth
 
     return NextResponse.json({
-      totalNetWorth,
-      totalInvested,
+      totalNetWorth: tnw,
+      totalInvested: nw.investedValue,
       gainLoss,
       gainLossPct,
       riskProfile: {
@@ -161,16 +129,24 @@ export async function GET() {
         gold:          { value: goldValue,          pct: Math.round((goldValue          / riskTotal) * 100) },
         international: { value: internationalValue, pct: Math.round((internationalValue / riskTotal) * 100) },
       },
-      allocation,
+      allocation: {
+        stocks:   tnw > 0 ? (nw.stocksValue   / tnw) * 100 : 0,
+        mf:       tnw > 0 ? (nw.mfValue       / tnw) * 100 : 0,
+        epf:      tnw > 0 ? (nw.epfValue      / tnw) * 100 : 0,
+        fd:       tnw > 0 ? (nw.fdValue       / tnw) * 100 : 0,
+        rd:       tnw > 0 ? (nw.rdValue       / tnw) * 100 : 0,
+        usStocks: tnw > 0 ? (nw.usStocksValue / tnw) * 100 : 0,
+        custom:   tnw > 0 ? (nw.customValue   / tnw) * 100 : 0,
+      },
       breakdown: {
-        stocks:   { value: stocksValue, invested: stocksInvested },
-        mf:       { value: mfValue,     invested: mfInvested },
-        epf:      { value: epfTotal,    invested: epfTotal },
-        fd:       { value: fdValue,     invested: fdInvested },
-        rd:       { value: rdValue,     invested: rdInvested },
-        usStocks: { value: usTotal,     invested: usStocksInvested },
+        stocks:   { value: nw.stocksValue,   invested: nw.stocksInvested   },
+        mf:       { value: nw.mfValue,       invested: nw.mfInvested       },
+        epf:      { value: nw.epfValue,      invested: nw.epfValue         },
+        fd:       { value: nw.fdValue,       invested: nw.fdInvested       },
+        rd:       { value: nw.rdValue,       invested: nw.rdInvested       },
+        usStocks: { value: nw.usStocksValue, invested: nw.usStocksInvested },
         custom: {
-          value: customTotal,
+          value: nw.customValue,
           count: customClasses.length,
         },
         customClasses: customClasses.map(c => ({

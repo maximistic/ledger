@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 
 async function getLiveExchangeRate(): Promise<number> {
   try {
@@ -11,14 +12,14 @@ async function getLiveExchangeRate(): Promise<number> {
       yahooChartUrl('USDINR=X'),
       { signal: AbortSignal.timeout(5000), headers: YAHOO_HEADERS },
     )
-    if (!res.ok) return 84
+    if (!res.ok) return DEFAULT_USD_INR_RATE
     const data = await res.json() as {
       chart?: { result?: Array<{ meta?: { regularMarketPrice?: number } }> }
     }
     const rate = data?.chart?.result?.[0]?.meta?.regularMarketPrice
-    return rate && rate > 0 ? rate : 84
+    return rate && rate > 0 ? rate : DEFAULT_USD_INR_RATE
   } catch {
-    return 84
+    return DEFAULT_USD_INR_RATE
   }
 }
 

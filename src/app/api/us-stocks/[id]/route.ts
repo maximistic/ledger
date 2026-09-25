@@ -32,10 +32,19 @@ export async function PUT(request: Request, { params }: Ctx) {
       quantity?: unknown; avgPriceUSD?: unknown; currentPriceUSD?: unknown; exchangeRate?: unknown
     }
 
-    const quantity       = typeof body.quantity       === 'number' ? body.quantity       : existing.quantity
-    const avgPriceUSD    = typeof body.avgPriceUSD    === 'number' ? body.avgPriceUSD    : existing.avgPriceUSD
+    if (typeof body.quantity       === 'number' && body.quantity       < 0)
+      return NextResponse.json({ error: 'quantity must be >= 0' }, { status: 400 })
+    if (typeof body.avgPriceUSD    === 'number' && body.avgPriceUSD    < 0)
+      return NextResponse.json({ error: 'avgPriceUSD must be >= 0' }, { status: 400 })
+    if (typeof body.currentPriceUSD === 'number' && body.currentPriceUSD < 0)
+      return NextResponse.json({ error: 'currentPriceUSD must be >= 0' }, { status: 400 })
+    if (typeof body.exchangeRate   === 'number' && body.exchangeRate   <= 0)
+      return NextResponse.json({ error: 'exchangeRate must be > 0' }, { status: 400 })
+
+    const quantity        = typeof body.quantity        === 'number' ? body.quantity        : existing.quantity
+    const avgPriceUSD     = typeof body.avgPriceUSD     === 'number' ? body.avgPriceUSD     : existing.avgPriceUSD
     const currentPriceUSD = typeof body.currentPriceUSD === 'number' ? body.currentPriceUSD : existing.currentPriceUSD
-    const exchangeRate   = typeof body.exchangeRate   === 'number' ? body.exchangeRate   : existing.exchangeRate
+    const exchangeRate    = typeof body.exchangeRate    === 'number' ? body.exchangeRate    : existing.exchangeRate
 
     const investedValueINR = quantity * avgPriceUSD * exchangeRate
     const currentValueINR  = quantity * currentPriceUSD * exchangeRate

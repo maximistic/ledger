@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { RefreshCw, Upload, Plus, TrendingUp } from 'lucide-react'
 import { formatINR, formatINRSigned, formatPctSigned, formatShort, formatShortSigned } from '@/lib/utils'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 import USStockDetailDialog from './USStockDetailDialog'
 import AddEditUSStockDialog from './AddEditUSStockDialog'
 import ImportUSStocksDialog from './ImportUSStocksDialog'
@@ -342,9 +343,9 @@ export default function USStocksTab({ onTotalsChange }: Props) {
     setRefreshStatus('')
     try {
       const res  = await fetch('/api/us-stocks/price/refresh', { method: 'POST' })
-      const data = await res.json() as { updated?: number; exchangeRate?: number | null }
+      const data = await res.json() as { updated?: number; failed?: number; skipped?: number; exchangeRate?: number | null }
       const rateStr = data.exchangeRate ? ` · Rate: ₹${data.exchangeRate.toFixed(2)}/USD` : ''
-      setRefreshStatus(`Updated ${data.updated ?? 0}${rateStr}`)
+      setRefreshStatus(`Updated ${data.updated ?? 0} · Failed ${data.failed ?? 0} · Skipped ${data.skipped ?? 0}${rateStr}`)
       clearTimeout(refreshTimer.current)
       refreshTimer.current = setTimeout(() => setRefreshStatus(''), 5000)
       await fetchStocks()
@@ -360,7 +361,7 @@ export default function USStocksTab({ onTotalsChange }: Props) {
   const totalGain     = totalCurrent - totalInvested
   const totalGainPct  = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0
   const gainColor     = totalGain >= 0 ? 'var(--color-gain)' : 'var(--color-loss)'
-  const currentRate   = stocks.find(s => s.exchangeRate > 0)?.exchangeRate ?? 84
+  const currentRate   = stocks.find(s => s.exchangeRate > 0)?.exchangeRate ?? DEFAULT_USD_INR_RATE
 
   return (
     <div>

@@ -42,7 +42,6 @@ export async function POST(request: Request) {
       include: { entries: true },
     })
 
-    console.log('[POST /api/custom-assets] created:', cls.id)
     return NextResponse.json({
       class: { ...cls, totalCurrentValue: 0, totalPurchasePrice: 0, totalGainLoss: 0, totalGainLossPct: 0, entryCount: 0 },
     }, { status: 201 })

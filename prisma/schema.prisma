@@ -209,7 +209,7 @@ model USStock {
   quantity            Float
   avgPriceUSD         Float
   currentPriceUSD     Float                @default(0)
-  exchangeRate        Float                @default(84)
+  exchangeRate        Float                @default(0)
   investedValueINR    Float                @default(0)
   currentValueINR     Float                @default(0)
   holdingsQuantity    Float                @default(0)

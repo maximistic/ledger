@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { X, Search, Loader2 } from 'lucide-react'
 import { formatINR } from '@/lib/utils'
 import { USStock, formatUSD, labelStyle, inputStyle } from './USStocksTab'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 
 interface SearchResult {
   ticker: string
@@ -63,9 +64,9 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
       .then(r => r.json())
       .then((data: { rate?: number }) => {
         if (data.rate && data.rate > 0) setRate(String(data.rate.toFixed(2)))
-        else setRate('84')
+        else setRate(String(DEFAULT_USD_INR_RATE))
       })
-      .catch(() => setRate('84'))
+      .catch(() => setRate(String(DEFAULT_USD_INR_RATE)))
       .finally(() => setRateLoading(false))
   }, [stock])
 
@@ -109,7 +110,7 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
 
   const qty   = parseFloat(quantity)    || 0
   const price = parseFloat(avgPriceUSD) || 0
-  const rate  = parseFloat(exchangeRate) || 84
+  const rate  = parseFloat(exchangeRate) || DEFAULT_USD_INR_RATE
   const totalUSD = qty * price
   const totalINR = totalUSD * rate
 
@@ -312,7 +313,7 @@ export default function AddEditUSStockDialog({ mode, stock, onClose, onSuccess }
             <input
               type="number" min="0" step="any"
               value={exchangeRate} onChange={e => setRate(e.target.value)}
-              placeholder={rateLoading ? 'Fetching…' : '84'}
+              placeholder={rateLoading ? 'Fetching…' : String(DEFAULT_USD_INR_RATE)}
               style={{ ...inputStyle, fontVariantNumeric: 'tabular-nums' }}
             />
             {errors.rate && <div style={errText}>{errors.rate}</div>}

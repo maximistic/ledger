@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calculateFDCurrentValue, calculateRDCurrentValue } from '@/lib/fdCalculator'
 import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
+import { computeNetWorthFromData } from '@/lib/netWorth'
 
 interface YahooChartResult {
   chart: {
@@ -50,27 +51,29 @@ async function processEPFContributions(): Promise<{ processed: boolean; skipped:
 
     const wageMonth = `${MONTH_NAMES[today.getMonth()]}-${today.getFullYear()}`
 
-    await prisma.ePFTransaction.create({
-      data: {
-        accountId:       epfAccount.id,
-        wageMonth,
-        transactionDate: today,
-        type:            'CR',
-        particulars:     `Auto-tracked contribution for ${wageMonth}`,
-        employeeAmount:  epfAccount.employeeMonthly,
-        employerAmount:  epfAccount.employerMonthly,
-        pensionAmount:   0,
-        autoCreated:     true,
-      },
-    })
+    await prisma.$transaction(async (tx) => {
+      await tx.ePFTransaction.create({
+        data: {
+          accountId:       epfAccount.id,
+          wageMonth,
+          transactionDate: today,
+          type:            'CR',
+          particulars:     `Auto-tracked contribution for ${wageMonth}`,
+          employeeAmount:  epfAccount.employeeMonthly,
+          employerAmount:  epfAccount.employerMonthly,
+          pensionAmount:   0,
+          autoCreated:     true,
+        },
+      })
 
-    await prisma.ePFAccount.update({
-      where: { id: epfAccount.id },
-      data: {
-        employeeBalance:  { increment: epfAccount.employeeMonthly },
-        employerBalance:  { increment: epfAccount.employerMonthly },
-        lastProcessedDate: today,
-      },
+      await tx.ePFAccount.update({
+        where: { id: epfAccount.id },
+        data: {
+          employeeBalance:  { increment: epfAccount.employeeMonthly },
+          employerBalance:  { increment: epfAccount.employerMonthly },
+          lastProcessedDate: today,
+        },
+      })
     })
 
     return { processed: true, skipped: false }
@@ -181,6 +184,12 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
       await prisma.snapshotConfig.update({ where: { id: config.id }, data: { lastRunAt: today } })
     }
 
+    const dateKey = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+    // Never overwrite a MANUAL snapshot taken today — user's explicit action takes precedence
+    const existing = await prisma.snapshot.findUnique({ where: { date: dateKey } })
+    if (existing?.source === 'MANUAL') return { created: false, skipped: true }
+
     const [stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses] = await Promise.all([
       prisma.stock.findMany(),
       prisma.mutualFund.findMany(),
@@ -191,29 +200,12 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
       prisma.customAssetClass.findMany({ include: { entries: true } }),
     ])
 
-    const stocksValue   = stocks.reduce((s, x) => s + x.currentValue, 0)
-    const mfValue       = mfs.reduce((s, x) => s + x.currentValue, 0)
-    const epfValue      = epfAccounts.reduce((s, x) => s + x.employeeBalance + x.employerBalance + x.pensionBalance, 0)
-    const fdValue       = fds.reduce((s, x) => s + x.currentValue, 0)
-    const rdValue       = rds.reduce((s, x) => s + x.currentValue, 0)
-    const usStocksValue = usStocks.reduce((s, x) => s + x.currentValueINR, 0)
-    const customValue   = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.currentValue, 0), 0)
-    const totalNetWorth = stocksValue + mfValue + epfValue + fdValue + rdValue + usStocksValue + customValue
-
-    const stocksInvested   = stocks.reduce((s, x) => s + x.investedValue, 0)
-    const mfInvested       = mfs.reduce((s, x) => s + x.investedValue, 0)
-    const fdInvested       = fds.reduce((s, x) => s + x.principal, 0)
-    const rdInvested       = rds.reduce((s, x) => s + x.totalInvested, 0)
-    const usStocksInvested = usStocks.reduce((s, x) => s + x.investedValueINR, 0)
-    const customInvested   = customClasses.reduce((s, cls) => s + cls.entries.reduce((es, e) => es + e.purchasePrice, 0), 0)
-    const investedValue    = stocksInvested + mfInvested + epfValue + fdInvested + rdInvested + usStocksInvested + customInvested
-
-    const dateKey = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const nw = computeNetWorthFromData(stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses)
 
     await prisma.snapshot.upsert({
       where:  { date: dateKey },
-      update: { totalNetWorth, stocksValue, mfValue, epfValue, fdValue, rdValue, usStocksValue, investedValue, source: 'AUTO' },
-      create: { date: dateKey, totalNetWorth, stocksValue, mfValue, epfValue, fdValue, rdValue, usStocksValue, investedValue, source: 'AUTO' },
+      update: { ...nw, source: 'AUTO' },
+      create: { date: dateKey, ...nw, source: 'AUTO' },
     })
 
     return { created: true, skipped: false }
@@ -222,7 +214,7 @@ async function processSnapshot(): Promise<{ created: boolean; skipped: boolean; 
   }
 }
 
-async function processUSStocks(): Promise<{ updated: number; failed: number; skipped: number; exchangeRate: number | null }> {
+async function processUSStocks(): Promise<{ updated: number; failed: number; skipped: number; exchangeRate: number | null; error?: string }> {
   let updated  = 0
   let failed   = 0
   let skipped  = 0
@@ -257,8 +249,9 @@ async function processUSStocks(): Promise<{ updated: number; failed: number; ski
       })
       updated++
     }
-  } catch {
-    // Non-fatal — cron continues
+  } catch (err) {
+    console.error('[cron] processUSStocks error:', err)
+    return { updated, failed, skipped, exchangeRate: currentExchangeRate, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 
   return { updated, failed, skipped, exchangeRate: currentExchangeRate }

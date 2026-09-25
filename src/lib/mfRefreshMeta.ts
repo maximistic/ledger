@@ -24,12 +24,9 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
         const price = yahooData?.chart?.result?.[0]?.meta?.regularMarketPrice
         if (price && price > 0) {
           latestNav = price
-          console.log(`[refreshFundMeta] Yahoo NAV for ${fund.name}: ${latestNav}`)
         }
       }
-    } catch (err) {
-      console.log('[refreshFundMeta] Yahoo Finance fetch failed:', err)
-    }
+    } catch { /* ignore — mfapi fallback will handle */ }
 
     // Step 2: Fallback to mfapi.in
     if (latestNav <= 0) {
@@ -43,14 +40,11 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
           const nav = parseFloat(mfData?.data?.[0]?.nav ?? '0')
           if (nav > 0) {
             latestNav = nav
-            console.log(`[refreshFundMeta] mfapi fallback NAV for ${fund.name}: ${latestNav}`)
           }
           if (mfData?.meta?.fund_house)      fundHouse    = mfData.meta.fund_house
           if (mfData?.meta?.scheme_category) fundCategory = mfData.meta.scheme_category
         }
-      } catch (err) {
-        console.log('[refreshFundMeta] mfapi fallback failed:', err)
-      }
+      } catch { /* ignore */ }
     }
 
     // Step 3: Fetch metadata separately if still missing
@@ -75,7 +69,6 @@ export async function refreshFundMeta(fundId: string): Promise<void> {
     }
 
     await prisma.mutualFund.update({ where: { id: fund.id }, data: updateData })
-    console.log(`[refreshFundMeta] updated ${fund.name} — NAV ${latestNav}`)
   } catch (err) {
     console.error('[refreshFundMeta] error:', err)
   }

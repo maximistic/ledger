@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { yahooChartUrl, YAHOO_HEADERS } from '@/lib/yahoo'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 
 export async function GET() {
   try {
@@ -15,11 +16,11 @@ export async function GET() {
     }
     const rate = data?.chart?.result?.[0]?.meta?.regularMarketPrice
     return NextResponse.json({
-      rate:   rate && rate > 0 ? rate : 84,
+      rate:   rate && rate > 0 ? rate : DEFAULT_USD_INR_RATE,
       source: rate && rate > 0 ? 'live' : 'fallback',
     })
   } catch (err) {
     console.error('[GET /api/us-stocks/exchange-rate]', err)
-    return NextResponse.json({ rate: 84, source: 'fallback' })
+    return NextResponse.json({ rate: DEFAULT_USD_INR_RATE, source: 'fallback' })
   }
 }

@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       const mergedQty           = existing.quantity + quantity
       const mergedAvgPrice      = (existing.investedValue + investedValue) / mergedQty
       const mergedInvestedValue = mergedQty * mergedAvgPrice
-      const mergedCurrentValue  = mergedQty * existing.currentPrice
+      const mergedCurrentValue  = mergedQty * (existing.currentPrice > 0 ? existing.currentPrice : mergedAvgPrice)
       // holdingsQuantity grows by newQty — transactions are already captured in existing.quantity
       const newHoldingsQty      = existing.holdingsQuantity + quantity
 

@@ -38,7 +38,9 @@ export async function POST(request: Request, { params }: Ctx) {
     if (!Number.isFinite(currentValue) || currentValue <= 0)
       return NextResponse.json({ error: 'Current value must be greater than 0' }, { status: 400 })
 
-    const purchasePrice = parseFloat(String(body.purchasePrice ?? '0')) || 0
+    const purchasePrice = body.purchasePrice != null ? parseFloat(String(body.purchasePrice)) : 0
+    if (!Number.isFinite(purchasePrice) || purchasePrice < 0)
+      return NextResponse.json({ error: 'purchasePrice must be >= 0' }, { status: 400 })
 
     let purchaseDate: Date | null = null
     if (typeof body.purchaseDate === 'string' && body.purchaseDate) {
@@ -53,7 +55,6 @@ export async function POST(request: Request, { params }: Ctx) {
       data: { classId: id, name, type: cls.name, purchasePrice, currentValue, purchaseDate, notes },
     })
 
-    console.log('[POST /api/custom-assets/[id]/entries] created:', entry.id)
     return NextResponse.json({ entry }, { status: 201 })
   } catch (error) {
     console.error('[POST /api/custom-assets/[id]/entries]', error)

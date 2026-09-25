@@ -87,40 +87,44 @@ export async function POST(request: NextRequest) {
       skipped   += orders.length - toInsert.length
 
       if (toInsert.length > 0) {
-        await prisma.uSStockTransaction.createMany({
-          data: toInsert.map(o => ({
-            stockId,
-            date:         o.date,
-            type:         o.type,
-            quantity:     o.quantity,
-            priceUSD:     o.priceUSD,
-            amountUSD:    o.amountUSD,
-            amountINR:    o.amountUSD * stock.exchangeRate,
-            exchangeRate: stock.exchangeRate,
-          })),
+        await prisma.$transaction(async (tx) => {
+          await tx.uSStockTransaction.createMany({
+            data: toInsert.map(o => ({
+              stockId,
+              date:         o.date,
+              type:         o.type,
+              quantity:     o.quantity,
+              priceUSD:     o.priceUSD,
+              amountUSD:    o.amountUSD,
+              // Historical exchange rate at trade date is not available in the import file.
+              // Store 0 as a sentinel; display layer should show "N/A" for these transactions.
+              amountINR:    0,
+              exchangeRate: 0,
+            })),
+          })
+
+          // Recalculate from all transactions (including newly inserted)
+          const allTxns = await tx.uSStockTransaction.findMany({ where: { stockId } })
+          const buyTxns = allTxns.filter(t => t.type === 'BUY')
+          const sellQty = allTxns.filter(t => t.type === 'SELL').reduce((s, t) => s + t.quantity, 0)
+          const totalBuyQty = buyTxns.reduce((s, t) => s + t.quantity, 0)
+          const weightedAvg = totalBuyQty > 0
+            ? buyTxns.reduce((s, t) => s + t.priceUSD * t.quantity, 0) / totalBuyQty
+            : stock.avgPriceUSD
+          const newQty = stock.holdingsQuantity + totalBuyQty - sellQty
+
+          await tx.uSStock.update({
+            where: { id: stockId },
+            data: {
+              quantity:         Math.max(0, newQty),
+              avgPriceUSD:      weightedAvg,
+              investedValueINR: Math.max(0, newQty) * weightedAvg * stock.exchangeRate,
+              currentValueINR:  Math.max(0, newQty) * stock.currentPriceUSD * stock.exchangeRate,
+            },
+          })
         })
         created += toInsert.length
         stocks.push(ticker)
-
-        // Recalculate from all transactions (including newly inserted)
-        const allTxns = await prisma.uSStockTransaction.findMany({ where: { stockId } })
-        const buyTxns = allTxns.filter(t => t.type === 'BUY')
-        const sellQty = allTxns.filter(t => t.type === 'SELL').reduce((s, t) => s + t.quantity, 0)
-        const totalBuyQty = buyTxns.reduce((s, t) => s + t.quantity, 0)
-        const weightedAvg = totalBuyQty > 0
-          ? buyTxns.reduce((s, t) => s + t.priceUSD * t.quantity, 0) / totalBuyQty
-          : stock.avgPriceUSD
-        const newQty = stock.holdingsQuantity + totalBuyQty - sellQty
-
-        await prisma.uSStock.update({
-          where: { id: stockId },
-          data: {
-            quantity:         Math.max(0, newQty),
-            avgPriceUSD:      weightedAvg,
-            investedValueINR: Math.max(0, newQty) * weightedAvg * stock.exchangeRate,
-            currentValueINR:  Math.max(0, newQty) * stock.currentPriceUSD * stock.exchangeRate,
-          },
-        })
       }
     } catch (err) {
       errors.push(`${ticker}: ${err instanceof Error ? err.message : 'DB error'}`)

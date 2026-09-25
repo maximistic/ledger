@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Pencil, Trash2, Plus, Loader2 } from 'lucide-react'
 import { formatINR, formatINRSigned, formatPctSigned, formatDate, formatShort } from '@/lib/utils'
 import { USStock, formatUSD, USD_BADGE } from './USStocksTab'
+import { DEFAULT_USD_INR_RATE } from '@/lib/constants'
 
 interface USTransaction {
   id: string
@@ -37,7 +38,7 @@ export default function USStockDetailDialog({ stock, onClose, onEdit, onDelete, 
   const [txDate, setTxDate]             = useState('')
   const [txQty, setTxQty]               = useState('')
   const [txPriceUSD, setTxPriceUSD]     = useState('')
-  const [txRate, setTxRate]             = useState(String(stock.exchangeRate > 0 ? stock.exchangeRate : 84))
+  const [txRate, setTxRate]             = useState(String(stock.exchangeRate > 0 ? stock.exchangeRate : DEFAULT_USD_INR_RATE))
   const [txErrors, setTxErrors]         = useState<Record<string, string>>({})
   const [txSubmitting, setTxSubmitting] = useState(false)
   const [txSubmitError, setTxSubmitError] = useState('')
@@ -119,7 +120,7 @@ export default function USStockDetailDialog({ stock, onClose, onEdit, onDelete, 
 
   const qty      = parseFloat(txQty)     || 0
   const priceNum = parseFloat(txPriceUSD) || 0
-  const rateNum  = parseFloat(txRate)    || 84
+  const rateNum  = parseFloat(txRate)    || DEFAULT_USD_INR_RATE
   const totalUSD = qty * priceNum
   const totalINR = totalUSD * rateNum
 
@@ -265,7 +266,7 @@ export default function USStockDetailDialog({ stock, onClose, onEdit, onDelete, 
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={fLabel}>Exchange rate (₹/$)</div>
-                  <input type="number" min="0" step="any" value={txRate} onChange={e => setTxRate(e.target.value)} placeholder="84" style={{ ...fInput, fontVariantNumeric: 'tabular-nums' }} />
+                  <input type="number" min="0" step="any" value={txRate} onChange={e => setTxRate(e.target.value)} placeholder={String(DEFAULT_USD_INR_RATE)} style={{ ...fInput, fontVariantNumeric: 'tabular-nums' }} />
                   {txErrors.rate && <div style={errTxt}>{txErrors.rate}</div>}
                 </div>
               </div>
