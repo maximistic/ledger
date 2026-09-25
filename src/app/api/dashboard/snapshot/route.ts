@@ -58,11 +58,22 @@ export async function POST() {
     ])
 
     const nw = computeNetWorthFromData(stocks, mfs, epfAccounts, fds, rds, usStocks, customClasses)
+    const snapshotData = {
+      totalNetWorth: nw.totalNetWorth,
+      stocksValue:   nw.stocksValue,
+      mfValue:       nw.mfValue,
+      epfValue:      nw.epfValue,
+      fdValue:       nw.fdValue,
+      rdValue:       nw.rdValue,
+      usStocksValue: nw.usStocksValue,
+      customValue:   nw.customValue,
+      investedValue: nw.investedValue,
+    }
 
     const snapshot = await prisma.snapshot.upsert({
       where:  { date: dateKey },
-      update: { ...nw, source: 'MANUAL' },
-      create: { date: dateKey, ...nw, source: 'MANUAL' },
+      update: { ...snapshotData, source: 'MANUAL' },
+      create: { date: dateKey, ...snapshotData, source: 'MANUAL' },
     })
 
     return NextResponse.json({ ok: true, snapshot })

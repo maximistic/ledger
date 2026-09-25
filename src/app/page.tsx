@@ -87,6 +87,7 @@ export default function DashboardPage() {
 
   async function handleSnapshot() {
     setTakingSnapshot(true)
+    setFetchError(null)
     try {
       const res = await fetch('/api/dashboard/snapshot', { method: 'POST' })
       if (res.ok) {
@@ -94,7 +95,12 @@ export default function DashboardPage() {
         setTimeout(() => setSnapshotToast(false), 3000)
         const snapshotRes = await fetch(`/api/dashboard/snapshot?period=${activeTab}`)
         if (snapshotRes.ok) setSnapshots(await snapshotRes.json())
+      } else {
+        const err = await res.json().catch(() => ({})) as { error?: string }
+        setFetchError(err.error ?? `Snapshot failed (${res.status})`)
       }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Snapshot failed')
     } finally {
       setTakingSnapshot(false)
     }

@@ -246,6 +246,7 @@ model Snapshot {
   fdValue       Float    @default(0)
   rdValue       Float    @default(0)
   usStocksValue Float    @default(0)
+  customValue   Float    @default(0)
   investedValue Float    @default(0)
   source        String   @default("AUTO")
   createdAt     DateTime @default(now())
